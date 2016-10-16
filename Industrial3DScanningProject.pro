@@ -13,5 +13,13 @@ QML_IMPORT_PATH =
 # Default rules for deployment.
 include(deployment.pri)
 
+#DESTDIR = ./bin
+
+#installfiles.path = $$DESTDIR
+#installfiles.files = bunny.xyz
+
+#INSTALLS += installfiles
+
 HEADERS += \
-    scenerenderer.h
+    scenerenderer.h \
+    vertexfileloader.h

@@ -14,14 +14,16 @@ class QOpenGLShaderProgram;
 
 #include <QMatrix4x4>
 
-class SceneRenderer : public QQuickItem, protected QOpenGLFunctions_4_3_Core
+class SceneRenderer : public QQuickItem,
+                      protected QOpenGLFunctions_4_3_Core
 {
     Q_OBJECT
 
 public:
     SceneRenderer();
 
-    ~SceneRenderer() {
+    ~SceneRenderer()
+    {
         delete m_program;
     }
 
@@ -33,19 +35,19 @@ public slots:
     void synchronize();
 
 private:
-    QSize m_viewportSize;
-    bool m_connected = false;
-
-    QOpenGLShaderProgram* m_program;
-
+    QOpenGLShaderProgram* m_program = 0;
     uint m_vao = 0;
     uint m_ibo = 0;
+    bool m_connected = false;
+    QSize m_viewportSize;
 
     void initVertexArrayObject();
     void initShader();
-    //void initTransformBlock();
+
+    QVector3D calculateCOG(QVector<QVector3D>& vertices);
 
     void drawGeometry();
+    void generatePointIndices();
 
     QVector<QVector3D> m_vertices;
     QVector<int> m_indices;
