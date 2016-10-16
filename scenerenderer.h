@@ -12,6 +12,8 @@ class QOpenGLShaderProgram;
 #include <QVector>
 #include <QVector3D>
 
+#include <QMatrix4x4>
+
 class SceneRenderer : public QQuickItem, protected QOpenGLFunctions_4_3_Core
 {
     Q_OBJECT
@@ -41,11 +43,15 @@ private:
 
     void initVertexArrayObject();
     void initShader();
+    //void initTransformBlock();
 
     void drawGeometry();
 
     QVector<QVector3D> m_vertices;
     QVector<int> m_indices;
+
+    QMatrix4x4 m_modelview;
+    QMatrix4x4 m_projection;
 };
 
 #endif // SCENERENDERER_H
