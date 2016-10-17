@@ -1,9 +1,11 @@
-#include "scenerenderer.h"
+﻿#include "scenerenderer.h"
 
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QQuickWindow>
 #include <QOpenGLShaderProgram>
+
+#include <QQuaternion>
 
 #include "vertexfileloader.h"
 
@@ -11,23 +13,93 @@ SceneRenderer::SceneRenderer()
 {
     connect(this, &QQuickItem::windowChanged, this, &SceneRenderer::handleWindowChanged);
 
-    VertexFileLoader::loadVerticesFromFile("bin/Stanford Bunny.xyz", m_vertices);
+    int pointRes = 50;
+    float pointStep = 0.1f / pointRes;
+
+    for(int i=0; i <= pointRes; ++i)
+    {
+        for(int j=0; j <= pointRes; ++j)
+        {
+            m_vertices.push_back( QVector3D(i * pointStep, j * pointStep, 0.0f) );
+            m_vertices.push_back( QVector3D(i * pointStep, j * pointStep, 0.1f) );
+        }
+    }
+    for(int i=0; i <= pointRes; ++i)
+    {
+        for(int j=1; j < pointRes; ++j)
+        {
+            m_vertices.push_back( QVector3D(0.0f, i * pointStep, j * pointStep) );
+            m_vertices.push_back( QVector3D(0.1f, i * pointStep, j * pointStep) );
+        }
+    }
+    for(int i=1; i < pointRes; ++i)
+    {
+        for(int j=1; j < pointRes; ++j)
+        {
+            m_vertices.push_back( QVector3D(i * pointStep, 0.0f, j * pointStep) );
+            m_vertices.push_back( QVector3D(i * pointStep, 0.1f, j * pointStep) );
+        }
+    }
+
+    generatePointIndices();
+    setupModelView();
+
+    m_vertexBufferInvalidated = true;
+}
+
+void SceneRenderer::updateRotation(float deltaX, float deltaY)
+{
+    QMatrix4x4 rotLeft;
+    rotLeft.rotate(deltaX, 0, 1, 0);
+    rotLeft.rotate(deltaY, 1, 0, 0);
+
+    m_rotation = rotLeft * m_rotation;
+
+    setupModelView();
+
+    // schedule repaint for next frame
+    window()->update();
+}
+
+void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
+{
+    m_geometryFilePath = geometryFilePath;
+
+    char* stringByteData = m_geometryFilePath.toLatin1().data();
+    VertexFileLoader::loadVerticesFromFile(stringByteData, m_vertices);
     generatePointIndices();
 
-    QVector3D cog = calculateCOG(m_vertices);
+    m_rotation = QMatrix4x4();
+    setupModelView();
 
-    m_modelview = QMatrix4x4();
-    m_modelview.translate( -cog );
-    QVector3D eye(0, 0, 0.5f);
-    QVector3D center(0, 0, 0);
-    QVector3D up(0, 1.f, 0);
-    m_modelview.lookAt(eye, center, up);
+    m_vertexBufferInvalidated = true;
+
+    // schedule repaint for next frame when loading is done
+    window()->update();
 }
 
 void SceneRenderer::generatePointIndices()
 {
+    m_indices.clear();
     int index = 0;
     for(auto vertex : m_vertices) m_indices.push_back( index++ );
+}
+
+void SceneRenderer::setupModelView()
+{
+    m_modelview = m_rotation;
+
+    QVector3D cog = calculateCOG(m_vertices);
+    m_modelview.translate(-cog);
+
+    QMatrix4x4 view;
+
+    QVector3D eye(0, 0, 0.3f);
+    QVector3D center(0, 0, 0);
+    QVector3D up(0, 1.f, 0);
+    view.lookAt(eye, center, up);
+
+    m_modelview = view * m_modelview;
 }
 
 QVector3D SceneRenderer::calculateCOG(QVector<QVector3D>& vertices)
@@ -41,11 +113,9 @@ QVector3D SceneRenderer::calculateCOG(QVector<QVector3D>& vertices)
 
 void SceneRenderer::paint()
 {
-    qDebug() << "paint()";
-
+    qDebug() << "SceneRenderer: repaint scene";
     glViewport(0, 0, m_viewportSize.width(), m_viewportSize.height());
-
-    glClearColor(0, 0.3f, 0, 1);
+    glClearColor(0, 0.18f, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     m_program->bind();
@@ -77,53 +147,63 @@ void SceneRenderer::initShader()
     // TODO: load shader from separate file
     m_program = new QOpenGLShaderProgram();
     m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,
-                                       "layout(location=0) in vec3 position;"
+                                       "#version 430\n"
 
-                                       "uniform mat4 modelview;"
-                                       "uniform mat4 projection;"
+                                       "layout(location=0) in highp vec3 position;"
+
+                                       "uniform highp mat4 modelview;"
+                                       "uniform highp mat4 projection;"
 
                                        "void main()"
                                        "{"
                                        "    gl_Position = projection* modelview * vec4(position, 1.0);"
                                        "}");
     m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                       "#version 430\n"
+
                                        "void main()"
                                        "{"
-                                       "    gl_FragColor = vec4(1., 0., 0., 1.);"
+                                       "    gl_FragColor = vec4(1., 1., 1., 1.);"
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
-
     if( m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
 void SceneRenderer::synchronize()
 {
-    qInfo() << "SceneRender::syncronize()";
-
-    if (!m_connected) {
-        qInfo() << "SceneRender::syncronize(): connecting beforeRendering signal";
-
+    if( !m_glInitialized )
+    {
         // needed before Qt OpenGL wrapper functions can be called
         // essentially makes use of GLUT headers obsolete
         initializeOpenGLFunctions();
+
         connect(window(), &QQuickWindow::beforeRendering, this, &SceneRenderer::paint, Qt::DirectConnection);
+
+        m_glInitialized = true;
+    }
+
+    if(m_vertexBufferInvalidated)
+    {
+        qInfo() << "SceneRender::syncronize(): connecting beforeRendering signal";
 
         initVertexArrayObject();
         initShader();
 
-        m_connected = true;
+        m_vertexBufferInvalidated = false;
     }
     m_viewportSize = window()->size() * window()->devicePixelRatio();
 
     float aspect = m_viewportSize.width() / (float) m_viewportSize.height();
 
     m_projection = QMatrix4x4();
-    m_projection.perspective(60, aspect, 0.1f, 10.0f);
+    m_projection.perspective(50, aspect, 0.1f, 10.0f);
 }
 
 void SceneRenderer::drawGeometry()
 {
+    if(m_vertices.empty()) return;
+
     // bind VAO and IBO
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo);
@@ -140,6 +220,8 @@ void SceneRenderer::drawGeometry()
 
 void SceneRenderer::initVertexArrayObject()
 {
+    if(m_vertices.empty()) return;
+
     // create vertex buffer object
     uint vbo = 0;
     glGenBuffers(1, &vbo);

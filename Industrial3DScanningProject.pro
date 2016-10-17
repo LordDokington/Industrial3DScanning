@@ -5,7 +5,10 @@ SOURCES += main.cpp \
     scenerenderer.cpp
 
 RESOURCES += qml.qrc
-OTHER_FILES += main.qml
+
+OTHER_FILES += \
+    main.qml \
+    bunny.xyz
 
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH =

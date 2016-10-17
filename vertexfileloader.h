@@ -13,6 +13,9 @@ class VertexFileLoader
 public:
     static void loadVerticesFromFile(const char* filename, QVector<QVector3D>& vertices, bool append = false)
     {
+        // clear buffer if append flag is not set
+        if(!append) vertices.clear();
+
         std::ifstream file(filename, std::ios::in);
         if( file.is_open() )
         {
