@@ -7,7 +7,7 @@ import Renderer 1.0
 
 ApplicationWindow {
     visible: true
-    width: 800; height: 600
+    width: 640; height: 480
 
     title: qsTr("3D Scanning App")
 
@@ -72,7 +72,7 @@ ApplicationWindow {
 
         onAccepted: {
             var filePath = fileUrl.toString().replace( "file:///", "" )
-            console.log( "selected geometry file path:", filePath )
+            //console.log( "selected geometry file path:", filePath )
 
             sceneRenderer.geometryFilePath = filePath
 

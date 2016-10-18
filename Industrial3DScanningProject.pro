@@ -25,4 +25,5 @@ include(deployment.pri)
 
 HEADERS += \
     scenerenderer.h \
-    vertexfileloader.h
+    vertexfileloader.h \
+    scenerendererqmlwrapper.h

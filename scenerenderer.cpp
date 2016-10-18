@@ -3,48 +3,15 @@
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QQuickWindow>
-#include <QOpenGLShaderProgram>
-
-#include <QQuaternion>
 
 #include "vertexfileloader.h"
 
 SceneRenderer::SceneRenderer()
 {
-    connect(this, &QQuickItem::windowChanged, this, &SceneRenderer::handleWindowChanged);
-
-    int pointRes = 50;
-    float pointStep = 0.1f / pointRes;
-
-    for(int i=0; i <= pointRes; ++i)
-    {
-        for(int j=0; j <= pointRes; ++j)
-        {
-            m_vertices.push_back( QVector3D(i * pointStep, j * pointStep, 0.0f) );
-            m_vertices.push_back( QVector3D(i * pointStep, j * pointStep, 0.1f) );
-        }
-    }
-    for(int i=0; i <= pointRes; ++i)
-    {
-        for(int j=1; j < pointRes; ++j)
-        {
-            m_vertices.push_back( QVector3D(0.0f, i * pointStep, j * pointStep) );
-            m_vertices.push_back( QVector3D(0.1f, i * pointStep, j * pointStep) );
-        }
-    }
-    for(int i=1; i < pointRes; ++i)
-    {
-        for(int j=1; j < pointRes; ++j)
-        {
-            m_vertices.push_back( QVector3D(i * pointStep, 0.0f, j * pointStep) );
-            m_vertices.push_back( QVector3D(i * pointStep, 0.1f, j * pointStep) );
-        }
-    }
-
+    VertexFileLoader::cubePointCloudVertices(50, 0.1f, m_vertices);
     generatePointIndices();
-    setupModelView();
 
-    m_vertexBufferInvalidated = true;
+    setupModelView();
 }
 
 void SceneRenderer::updateRotation(float deltaX, float deltaY)
@@ -58,7 +25,7 @@ void SceneRenderer::updateRotation(float deltaX, float deltaY)
     setupModelView();
 
     // schedule repaint for next frame
-    window()->update();
+    m_window->update();
 }
 
 void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
@@ -72,10 +39,11 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     m_rotation = QMatrix4x4();
     setupModelView();
 
-    m_vertexBufferInvalidated = true;
+    // geometry changed, hence make paint function recreate VAO
+    m_isGeometryInvalidated = true;
 
     // schedule repaint for next frame when loading is done
-    window()->update();
+    m_window->update();
 }
 
 void SceneRenderer::generatePointIndices()
@@ -102,6 +70,13 @@ void SceneRenderer::setupModelView()
     m_modelview = view * m_modelview;
 }
 
+void SceneRenderer::setupProjection()
+{
+    m_projection = QMatrix4x4();
+    float aspect = m_viewportSize.width() / (float) m_viewportSize.height();
+    m_projection.perspective(50, aspect, 0.1f, 10.0f);
+}
+
 QVector3D SceneRenderer::calculateCOG(QVector<QVector3D>& vertices)
 {
     QVector3D cog;
@@ -113,7 +88,13 @@ QVector3D SceneRenderer::calculateCOG(QVector<QVector3D>& vertices)
 
 void SceneRenderer::paint()
 {
-    qDebug() << "SceneRenderer: repaint scene";
+    if( m_isGeometryInvalidated )
+    {
+        initVertexArrayObject();
+        m_isGeometryInvalidated = false;
+    }
+
+    //qDebug() << "SceneRenderer: repaint scene";
     glViewport(0, 0, m_viewportSize.width(), m_viewportSize.height());
     glClearColor(0, 0.18f, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -127,19 +108,7 @@ void SceneRenderer::paint()
 
     // restore OpenGL state in order to not mess up QML rendering
     // (which is also done with OpenGL)
-    window()->resetOpenGLState();
-}
-
-void SceneRenderer::handleWindowChanged(QQuickWindow *window)
-{
-    if(!window)
-    {
-        qWarning() << "SceneRenderer::handleWindowChanged(): window is null!";
-        return;
-    }
-
-    QObject::connect(window, SIGNAL(beforeSynchronizing()), this, SLOT(synchronize()), Qt::DirectConnection);
-    window->setClearBeforeRendering(false);
+    m_window->resetOpenGLState();
 }
 
 void SceneRenderer::initShader()
@@ -170,34 +139,19 @@ void SceneRenderer::initShader()
     if( m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
-void SceneRenderer::synchronize()
+void SceneRenderer::init()
 {
-    if( !m_glInitialized )
+    if( !m_program )
     {
+        qDebug() << "SceneRenderer::init(): setup shader and VAO";
+
         // needed before Qt OpenGL wrapper functions can be called
         // essentially makes use of GLUT headers obsolete
         initializeOpenGLFunctions();
-
-        connect(window(), &QQuickWindow::beforeRendering, this, &SceneRenderer::paint, Qt::DirectConnection);
-
-        m_glInitialized = true;
-    }
-
-    if(m_vertexBufferInvalidated)
-    {
-        qInfo() << "SceneRender::syncronize(): connecting beforeRendering signal";
-
-        initVertexArrayObject();
         initShader();
 
-        m_vertexBufferInvalidated = false;
+        m_isGeometryInvalidated = true;
     }
-    m_viewportSize = window()->size() * window()->devicePixelRatio();
-
-    float aspect = m_viewportSize.width() / (float) m_viewportSize.height();
-
-    m_projection = QMatrix4x4();
-    m_projection.perspective(50, aspect, 0.1f, 10.0f);
 }
 
 void SceneRenderer::drawGeometry()

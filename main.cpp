@@ -1,7 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 
-#include <scenerenderer.h>
+#include <scenerendererqmlwrapper.h>
 
 int main(int argc, char *argv[])
 {
@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     // register SceneRenderer as QML type (make it available as component)
-    qmlRegisterType<SceneRenderer>("Renderer", 1, 0, "SceneRenderer");
+    qmlRegisterType<SceneRendererQMLWrapper>("Renderer", 1, 0, "SceneRenderer");
 
     QQmlApplicationEngine engine;
     engine.load(QUrl(QLatin1String("qrc:/main.qml")));

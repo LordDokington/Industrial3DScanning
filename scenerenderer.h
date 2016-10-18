@@ -1,28 +1,25 @@
 #ifndef SCENERENDERER_H
 #define SCENERENDERER_H
 
-// forward declarations
-class QQuickWindow;
-class QOpenGLShaderProgram;
-
 #include <QObject>
-#include <QQuickItem>
 #include <QOpenGLFunctions_4_3_Core>
+#include <QQuickWindow>
+
+#include <QOpenGLShaderProgram>
 
 #include <QVector>
 #include <QVector3D>
 
 #include <QMatrix4x4>
 
-class SceneRenderer : public QQuickItem,
+class SceneRenderer : public QObject,
                       protected QOpenGLFunctions_4_3_Core
 {
     Q_OBJECT
-    Q_PROPERTY(QString geometryFilePath READ geometryFilePath WRITE setGeometryFilePath)
 
 public:
 
-    Q_INVOKABLE void updateRotation(float deltaX, float deltaY);
+    void updateRotation(float deltaX, float deltaY);
 
     SceneRenderer();
 
@@ -31,26 +28,24 @@ public:
         delete m_program;
     }
 
-    void setGeometryFilePath(const QString& geometryFilePath);
+    void setViewportSize(const QSize& viewportSize)
+    {
+        m_viewportSize = viewportSize;
+        setupProjection();
+    }
+    void setWindow(QQuickWindow* window) { m_window = window; }
 
+    void setGeometryFilePath(const QString& geometryFilePath);
     QString& geometryFilePath() { return m_geometryFilePath; }
 public slots:
     // plain old OpenGL paint function
     void paint();
-
-    void handleWindowChanged(QQuickWindow *window);
-    void synchronize();
+    void init();
 
 private:
-    QOpenGLShaderProgram* m_program = 0;
-    uint m_vao = 0;
-    uint m_ibo = 0;
-    bool m_vertexBufferInvalidated = true;
     QSize m_viewportSize;
-
-    bool m_glInitialized = false;
-
     QString m_geometryFilePath;
+    QQuickWindow* m_window = 0;
 
     QVector<QVector3D> m_vertices;
     QVector<int> m_indices;
@@ -59,11 +54,20 @@ private:
     QMatrix4x4 m_modelview;
     QMatrix4x4 m_projection;
 
+    QOpenGLShaderProgram* m_program = 0;
+    uint m_vao = 0;
+    uint m_ibo = 0;
+
+    bool m_isGeometryInvalidated = false;
+
     void initVertexArrayObject();
     void initShader();
-    void setupModelView();
+
     void drawGeometry();
     void generatePointIndices();
+
+    void setupModelView();
+    void setupProjection();
 
     QVector3D calculateCOG(QVector<QVector3D>& vertices);
 };
