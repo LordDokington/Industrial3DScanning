@@ -9,8 +9,11 @@
 
 #include <QVector>
 #include <QVector3D>
-
+#include <QVector4D>
 #include <QMatrix4x4>
+
+#include "kdtree.h"
+#include "vertexarrayobject.h"
 
 class SceneRenderer : public QObject,
                       protected QOpenGLFunctions_4_3_Core
@@ -18,8 +21,7 @@ class SceneRenderer : public QObject,
     Q_OBJECT
 
 public:
-
-    void updateRotation(float deltaX, float deltaY);
+    inline float sqr(float x) { return x*x; }
 
     SceneRenderer();
 
@@ -27,6 +29,8 @@ public:
     {
         delete m_program;
     }
+
+    void rotate(float x1, float y1, float x2, float y2);
 
     void setViewportSize(const QSize& viewportSize)
     {
@@ -43,33 +47,36 @@ public slots:
     void init();
 
 private:
+    QVector3D centerOfGravity(QVector<QVector3D>& vertices);
+
     QSize m_viewportSize;
     QString m_geometryFilePath;
     QQuickWindow* m_window = 0;
 
     QVector<QVector3D> m_vertices;
     QVector<int> m_indices;
+    QVector<int> m_highlightedIndices;
 
     QMatrix4x4 m_rotation;
     QMatrix4x4 m_modelview;
     QMatrix4x4 m_projection;
 
     QOpenGLShaderProgram* m_program = 0;
-    uint m_vao = 0;
-    uint m_ibo = 0;
+
+    VertexArrayObject m_defaultVAO;
+    VertexArrayObject m_highlightedVAO;
 
     bool m_isGeometryInvalidated = false;
 
-    void initVertexArrayObject();
+    void initVertexData();
     void initShader();
 
     void drawGeometry();
     void generatePointIndices();
+    void generateRandomPointIndices();
 
     void setupModelView();
     void setupProjection();
-
-    QVector3D calculateCOG(QVector<QVector3D>& vertices);
 };
 
 #endif // SCENERENDERER_H

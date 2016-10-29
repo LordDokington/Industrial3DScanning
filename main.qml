@@ -7,7 +7,7 @@ import Renderer 1.0
 
 ApplicationWindow {
     visible: true
-    width: 640; height: 480
+    width: 1024; height: 768
 
     title: qsTr("3D Scanning App")
 
@@ -33,14 +33,12 @@ ApplicationWindow {
         onPositionChanged: {
             var deltaX = mouse.x - lastX
             var deltaY = mouse.y - lastY
+
+            //console.log("rotate", lastX, lastY, mouse.x, mouse.y)
+            sceneRenderer.rotate(lastX, lastY, mouse.x, mouse.y)
+
             lastX = mouse.x
             lastY = mouse.y
-
-            console.log("update rotation:", deltaX, deltaY)
-
-            var rotSpeed = 0.5;
-
-            sceneRenderer.updateRotation(deltaX * rotSpeed, deltaY * rotSpeed)
         }
     }
 
@@ -72,7 +70,7 @@ ApplicationWindow {
 
         onAccepted: {
             var filePath = fileUrl.toString().replace( "file:///", "" )
-            //console.log( "selected geometry file path:", filePath )
+            console.log( "selected geometry file path:", filePath )
 
             sceneRenderer.geometryFilePath = filePath
 

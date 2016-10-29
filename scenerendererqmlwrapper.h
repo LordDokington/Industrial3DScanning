@@ -29,10 +29,10 @@ public:
         return m_sceneRenderer->geometryFilePath();
     }
 
-    Q_INVOKABLE void updateRotation(float deltaX, float deltaY)
+    Q_INVOKABLE void rotate(float x1, float y1, float x2, float y2)
     {
         if(!m_sceneRenderer) return;
-        m_sceneRenderer->updateRotation(deltaX, deltaY);
+        m_sceneRenderer->rotate(x1, y1, x2, y2);
     }
 
 public slots:
@@ -71,7 +71,7 @@ public slots:
             connect(win, &QQuickWindow::beforeRendering, m_sceneRenderer, &SceneRenderer::paint, Qt::DirectConnection);
         }
 
-        m_sceneRenderer->setViewportSize(win->size() * win->devicePixelRatio());
+        m_sceneRenderer->setViewportSize(win->size());
         m_sceneRenderer->setWindow(win);
     }
 

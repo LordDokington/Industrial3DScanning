@@ -3,29 +3,20 @@
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QQuickWindow>
+#include <QtMath>
 
 #include "vertexfileloader.h"
+#include "kdtree.h"
 
 SceneRenderer::SceneRenderer()
 {
     VertexFileLoader::cubePointCloudVertices(50, 0.1f, m_vertices);
     generatePointIndices();
+    generateRandomPointIndices();
+
+    KdTreeNode* tree = buildKdTree(m_vertices.begin(), m_vertices.end(), 0);
 
     setupModelView();
-}
-
-void SceneRenderer::updateRotation(float deltaX, float deltaY)
-{
-    QMatrix4x4 rotLeft;
-    rotLeft.rotate(deltaX, 0, 1, 0);
-    rotLeft.rotate(deltaY, 1, 0, 0);
-
-    m_rotation = rotLeft * m_rotation;
-
-    setupModelView();
-
-    // schedule repaint for next frame
-    m_window->update();
 }
 
 void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
@@ -35,6 +26,7 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     char* stringByteData = m_geometryFilePath.toLatin1().data();
     VertexFileLoader::loadVerticesFromFile(stringByteData, m_vertices);
     generatePointIndices();
+    generateRandomPointIndices();
 
     m_rotation = QMatrix4x4();
     setupModelView();
@@ -53,11 +45,28 @@ void SceneRenderer::generatePointIndices()
     for(auto vertex : m_vertices) m_indices.push_back( index++ );
 }
 
+void SceneRenderer::generateRandomPointIndices()
+{
+    m_highlightedIndices.clear();
+
+    int newIndex = 0;
+    int cnt = 0;
+    while(newIndex < m_vertices.length())
+    {
+        newIndex += qrand() % 50;
+        m_highlightedIndices.push_back( newIndex );
+        cnt++;
+    }
+
+    qDebug() << "random count " << cnt;
+}
+
+
 void SceneRenderer::setupModelView()
 {
     m_modelview = m_rotation;
 
-    QVector3D cog = calculateCOG(m_vertices);
+    QVector3D cog = centerOfGravity(m_vertices);
     m_modelview.translate(-cog);
 
     QMatrix4x4 view;
@@ -65,6 +74,7 @@ void SceneRenderer::setupModelView()
     QVector3D eye(0, 0, 0.3f);
     QVector3D center(0, 0, 0);
     QVector3D up(0, 1.f, 0);
+
     view.lookAt(eye, center, up);
 
     m_modelview = view * m_modelview;
@@ -77,7 +87,7 @@ void SceneRenderer::setupProjection()
     m_projection.perspective(50, aspect, 0.1f, 10.0f);
 }
 
-QVector3D SceneRenderer::calculateCOG(QVector<QVector3D>& vertices)
+QVector3D SceneRenderer::centerOfGravity(QVector<QVector3D>& vertices)
 {
     QVector3D cog;
     for(auto vertex : vertices) cog += vertex;
@@ -90,7 +100,7 @@ void SceneRenderer::paint()
 {
     if( m_isGeometryInvalidated )
     {
-        initVertexArrayObject();
+        initVertexData();
         m_isGeometryInvalidated = false;
     }
 
@@ -104,7 +114,20 @@ void SceneRenderer::paint()
     m_program->setUniformValue("modelview", m_modelview);
     m_program->setUniformValue("projection", m_projection);
 
-    drawGeometry();
+    glPointSize(1);
+
+    m_program->setUniformValue("color", QVector4D(1, 1, 1, 1));
+
+    m_defaultVAO.draw(GL_POINTS);
+
+    glPointSize(4);
+
+    m_program->setUniformValue("color", QVector4D(1, 0.6f, 0, 1));
+
+    m_highlightedVAO.draw(GL_POINTS);
+
+    // flush and swap buffers
+    glFlush();
 
     // restore OpenGL state in order to not mess up QML rendering
     // (which is also done with OpenGL)
@@ -130,13 +153,15 @@ void SceneRenderer::initShader()
     m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
                                        "#version 430\n"
 
+                                       "uniform highp vec4 color;"
+
                                        "void main()"
                                        "{"
-                                       "    gl_FragColor = vec4(1., 1., 1., 1.);"
+                                       "    gl_FragColor = color;"
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
-    if( m_program->link() ) qWarning() << "linking of shader failed!";
+    if( !m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
 void SceneRenderer::init()
@@ -154,52 +179,41 @@ void SceneRenderer::init()
     }
 }
 
-void SceneRenderer::drawGeometry()
+void SceneRenderer::initVertexData()
 {
-    if(m_vertices.empty()) return;
-
-    // bind VAO and IBO
-    glBindVertexArray(m_vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo);
-
-    glDrawElements(GL_POINTS, m_indices.size(), GL_UNSIGNED_INT, 0);
-
-    // unbind
-    glBindVertexArray(0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    // flush and swap buffers
-    glFlush();
+    m_defaultVAO.init(m_vertices, m_indices);
+    m_highlightedVAO.init(m_vertices, m_highlightedIndices);
 }
 
-void SceneRenderer::initVertexArrayObject()
+void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float currposY)
 {
-    if(m_vertices.empty()) return;
+    //The center of our virtual rotation ball is in the center of the screen
+    const float x0 = m_viewportSize.width() / 2.0f;
+    const float y0 = m_viewportSize.height() / 2.0f;
+    //We set the radius of rotation ball to half of the screen height
+    const float r = m_viewportSize.height() / 2.0f; //ball radius is half the window height
+    //const float r  = sqrt(sqr(m_winWidth) + sqr(m_winHeight)) / 2; //ball radius is half the window diagonal;
+    float lastPosZ = (sqr(r) - sqr(lastposX - x0) - sqr(lastposY - y0));
+    float currPosZ = (sqr(r) - sqr(currposX - x0) - sqr(currposY - y0));
 
-    // create vertex buffer object
-    uint vbo = 0;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, m_vertices.size() * sizeof(QVector3D), &m_vertices[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    //if z is negative then we are outside the virtual ball and the rotation is just around the current view direction/z-axis
+    lastPosZ = lastPosZ < 0 ? 0 : sqrt(lastPosZ);
+    currPosZ = currPosZ < 0 ? 0 : sqrt(currPosZ);
 
-    // create index buffer object
-    glGenBuffers(1, &m_ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_indices.size() * sizeof(int), &m_indices[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    //take into account that the screen origin is in the top left corner (and not bottom left) -> x'=x-x0 and y'=y0-y
+    QVector3D lastPos3d(lastposX - x0, y0 - lastposY, lastPosZ);
+    QVector3D currPos3d(currposX - x0, y0 - currposY, currPosZ);
+    lastPos3d.normalize(); //make unit normal vector
+    currPos3d.normalize(); //make unit normal vector
 
-    // create vertex arry object
-    glGenVertexArrays(1, &m_vao);
-    glBindVertexArray(m_vao);
+    //the current mouse interaction results in this 3d rotation in camera space (unit sphere)
+    QVector3D axisCS = QVector3D::crossProduct(lastPos3d, currPos3d);
+    float angle = acos( QVector3D::dotProduct(lastPos3d, currPos3d) );
+    QVector3D axisWS = m_rotation.transposed() * axisCS;
 
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(QVector3D), (char*)0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(QVector3D), (char*)12);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    m_rotation.rotate( qRadiansToDegrees(angle), axisWS);
 
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-
-    glBindVertexArray(0);
+    setupModelView();
+    // schedule repaint for next frame
+    m_window->update();
 }

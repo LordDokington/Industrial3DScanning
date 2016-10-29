@@ -2,7 +2,8 @@ QT += qml quick
 CONFIG += c++14
 
 SOURCES += main.cpp \
-    scenerenderer.cpp
+    scenerenderer.cpp \
+    kdtree.cpp
 
 RESOURCES += qml.qrc
 
@@ -26,4 +27,6 @@ include(deployment.pri)
 HEADERS += \
     scenerenderer.h \
     vertexfileloader.h \
-    scenerendererqmlwrapper.h
+    scenerendererqmlwrapper.h \
+    kdtree.h \
+    vertexarrayobject.h
