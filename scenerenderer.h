@@ -56,6 +56,7 @@ private:
     QVector<QVector3D> m_vertices;
     QVector<int> m_indices;
     QVector<int> m_highlightedIndices;
+    QVector<int> m_targetPointIndices;
 
     QMatrix4x4 m_rotation;
     QMatrix4x4 m_modelview;
@@ -65,6 +66,7 @@ private:
 
     VertexArrayObject m_defaultVAO;
     VertexArrayObject m_highlightedVAO;
+    VertexArrayObject m_targetPointVAO;
 
     bool m_isGeometryInvalidated = false;
 
@@ -72,8 +74,10 @@ private:
     void initShader();
 
     void drawGeometry();
-    void generatePointIndices();
-    void generateRandomPointIndices();
+    void generatePointIndices(const QVector<QVector3D>& vertices,
+                              QVector<int>& indices);
+
+    void createSelectionWithKdTree();
 
     void setupModelView();
     void setupProjection();

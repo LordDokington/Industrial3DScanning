@@ -22,7 +22,7 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
-    void init(QVector<QVector3D>& vertices, QVector<int>& indices)
+    void init(const QVector<QVector3D>& vertices, const QVector<int>& indices)
     {
         if(!m_glFunctionInitialized)
         {

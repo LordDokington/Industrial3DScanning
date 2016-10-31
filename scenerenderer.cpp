@@ -11,12 +11,32 @@
 SceneRenderer::SceneRenderer()
 {
     VertexFileLoader::cubePointCloudVertices(50, 0.1f, m_vertices);
-    generatePointIndices();
-    generateRandomPointIndices();
+    generatePointIndices(m_vertices, m_indices);
 
-    KdTreeNode* tree = buildKdTree(m_vertices.begin(), m_vertices.end(), 0);
+    createSelectionWithKdTree();
 
     setupModelView();
+}
+
+void SceneRenderer::createSelectionWithKdTree()
+{
+    KdTreeNode* tree = buildKdTree(m_vertices.begin(), m_vertices.end(), 0);
+
+    QVector3D targetPoint(0, 0, 0);
+    //QVector3D* pointRight = nearestPoint(targetPoint, tree, 0);
+    //if(pointRight != 0) m_highlightedIndices << (pointRight - m_vertices.data());
+
+    m_highlightedIndices.clear();
+    rangeQuery(QVector3D(-1, -1, -1), QVector3D(1, 1, 1), m_highlightedIndices, tree, 0);
+
+    // index of pointers in array is pointeradress - pointeradress of first pointer since memory is linear
+    for(int& index : m_highlightedIndices) index -= (int) m_vertices.data();
+    qDebug() << "size of highlighted:" << m_highlightedIndices.size();
+
+    m_vertices.push_back(targetPoint);
+    m_targetPointIndices.push_back(m_vertices.length() - 1);
+
+    delete tree;
 }
 
 void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
@@ -25,9 +45,12 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
 
     char* stringByteData = m_geometryFilePath.toLatin1().data();
     VertexFileLoader::loadVerticesFromFile(stringByteData, m_vertices);
-    generatePointIndices();
-    generateRandomPointIndices();
 
+    generatePointIndices(m_vertices, m_indices);
+
+    createSelectionWithKdTree();
+
+    // reset rotation
     m_rotation = QMatrix4x4();
     setupModelView();
 
@@ -38,29 +61,13 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     m_window->update();
 }
 
-void SceneRenderer::generatePointIndices()
+void SceneRenderer::generatePointIndices(const QVector<QVector3D>& vertices,
+                                         QVector<int>& indices)
 {
-    m_indices.clear();
+    indices.clear();
     int index = 0;
-    for(auto vertex : m_vertices) m_indices.push_back( index++ );
+    for(auto vertex : vertices) indices.push_back( index++ );
 }
-
-void SceneRenderer::generateRandomPointIndices()
-{
-    m_highlightedIndices.clear();
-
-    int newIndex = 0;
-    int cnt = 0;
-    while(newIndex < m_vertices.length())
-    {
-        newIndex += qrand() % 50;
-        m_highlightedIndices.push_back( newIndex );
-        cnt++;
-    }
-
-    qDebug() << "random count " << cnt;
-}
-
 
 void SceneRenderer::setupModelView()
 {
@@ -115,16 +122,16 @@ void SceneRenderer::paint()
     m_program->setUniformValue("projection", m_projection);
 
     glPointSize(1);
-
     m_program->setUniformValue("color", QVector4D(1, 1, 1, 1));
-
     m_defaultVAO.draw(GL_POINTS);
 
     glPointSize(4);
-
-    m_program->setUniformValue("color", QVector4D(1, 0.6f, 0, 1));
-
+    m_program->setUniformValue("color", QVector4D(1, 0.85f, 0, 1));
     m_highlightedVAO.draw(GL_POINTS);
+
+    glPointSize(6);
+    m_program->setUniformValue("color", QVector4D(1, 0, 0, 1));
+    m_targetPointVAO.draw(GL_POINTS);
 
     // flush and swap buffers
     glFlush();
@@ -134,9 +141,23 @@ void SceneRenderer::paint()
     m_window->resetOpenGLState();
 }
 
+void SceneRenderer::init()
+{
+    if( !m_program )
+    {
+        qDebug() << "SceneRenderer::init(): setup shader and VAO";
+
+        // needed before Qt OpenGL wrapper functions can be called
+        // essentially makes use of GLUT headers obsolete
+        initializeOpenGLFunctions();
+        initShader();
+
+        m_isGeometryInvalidated = true;
+    }
+}
+
 void SceneRenderer::initShader()
 {
-    // TODO: load shader from separate file
     m_program = new QOpenGLShaderProgram();
     m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,
                                        "#version 430\n"
@@ -164,25 +185,11 @@ void SceneRenderer::initShader()
     if( !m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
-void SceneRenderer::init()
-{
-    if( !m_program )
-    {
-        qDebug() << "SceneRenderer::init(): setup shader and VAO";
-
-        // needed before Qt OpenGL wrapper functions can be called
-        // essentially makes use of GLUT headers obsolete
-        initializeOpenGLFunctions();
-        initShader();
-
-        m_isGeometryInvalidated = true;
-    }
-}
-
 void SceneRenderer::initVertexData()
 {
     m_defaultVAO.init(m_vertices, m_indices);
     m_highlightedVAO.init(m_vertices, m_highlightedIndices);
+    m_targetPointVAO.init(m_vertices, m_targetPointIndices);
 }
 
 void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float currposY)
