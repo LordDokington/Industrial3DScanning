@@ -14,6 +14,8 @@
 
 #include "kdtree.h"
 #include "vertexarrayobject.h"
+#include "vertex.h"
+#include "utils.h"
 
 class SceneRenderer : public QObject,
                       protected QOpenGLFunctions_4_3_Core
@@ -28,6 +30,54 @@ public:
     ~SceneRenderer()
     {
         delete m_program;
+    }
+
+    QVector3D centerOfGravity(QVector<Vertex>& vertices)
+    {
+        QVector3D cog;
+        for(auto vertex : vertices) cog += vertex.position;
+        cog /= vertices.size();
+
+        return cog;
+    }
+
+    QVector3D colorFromGradientHSV(double index)
+    {
+        if     (index < 0) index = 0;
+        else if(index > 1) index = 1;
+
+        const double H (240.0*(1.0-index));
+        const double hi(std::floor(H/60.0));
+        const double f (H/60-hi);
+        const double V (1.0);
+        const double S (1.0);
+        const double p (V*(1.0-S));
+        const double q (V*(1.0-S*f));
+        const double t (V*(1.0-S*(1-f)));
+
+        if     (hi==1) return QVector3D(q,V,p);
+        else if(hi==2) return QVector3D(p,V,t);
+        else if(hi==3) return QVector3D(p,q,V);
+        else if(hi==4) return QVector3D(t,p,V);
+        else if(hi==5) return QVector3D(V,p,q);
+        else           return QVector3D(V,t,p); }
+
+    void pointCloudBounds(QVector<Vertex>& vertices, QVector3D& min, QVector3D& max)
+    {
+        if(vertices.empty()) return;
+
+        min = vertices[0].position;
+        max = vertices[0].position;
+        for(auto vertex : vertices)
+        {
+            if(vertex.position.x() < min.x()) min.setX( vertex.position.x() );
+            if(vertex.position.y() < min.y()) min.setY( vertex.position.y() );
+            if(vertex.position.z() < min.z()) min.setZ( vertex.position.z() );
+
+            if(vertex.position.x() > max.x()) max.setX( vertex.position.x() );
+            if(vertex.position.y() > max.y()) max.setY( vertex.position.y() );
+            if(vertex.position.z() > max.z()) max.setZ( vertex.position.z() );
+        }
     }
 
     void rotate(float x1, float y1, float x2, float y2);
@@ -47,13 +97,12 @@ public slots:
     void init();
 
 private:
-    QVector3D centerOfGravity(QVector<QVector3D>& vertices);
-
     QSize m_viewportSize;
     QString m_geometryFilePath;
     QQuickWindow* m_window = 0;
 
-    QVector<QVector3D> m_vertices;
+    QVector<Vertex> m_vertices;
+    QVector<Vertex> m_highlightedVertices;
     QVector<int> m_indices;
     QVector<int> m_highlightedIndices;
     QVector<int> m_targetPointIndices;
@@ -74,7 +123,7 @@ private:
     void initShader();
 
     void drawGeometry();
-    void generatePointIndices(const QVector<QVector3D>& vertices,
+    void generatePointIndices(const QVector<Vertex>& vertices,
                               QVector<int>& indices);
 
     void createSelectionWithKdTree();

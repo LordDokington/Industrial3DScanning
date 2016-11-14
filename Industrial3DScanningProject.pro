@@ -11,6 +11,9 @@ OTHER_FILES += \
     main.qml \
     bunny.xyz
 
+QMAKE_CXXFLAGS += -fopenmp
+LIBS += -fopenmp
+
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH =
 
@@ -25,8 +28,10 @@ include(deployment.pri)
 #INSTALLS += installfiles
 
 HEADERS += \
+    utils.h \
     scenerenderer.h \
     vertexfileloader.h \
     scenerendererqmlwrapper.h \
     kdtree.h \
-    vertexarrayobject.h
+    vertexarrayobject.h \
+    vertex.h

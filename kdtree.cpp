@@ -1,7 +1,7 @@
 #include "kdtree.h"
 #include <QDebug>
 
-KdTreeNode* buildKdTree(QVector3D* begin, QVector3D* end, uint depth)
+KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, uint depth)
 {
     unsigned int currentDimension = depth % 3;
     unsigned int numPoints = (end - begin);
@@ -11,18 +11,21 @@ KdTreeNode* buildKdTree(QVector3D* begin, QVector3D* end, uint depth)
 
     if(currentDimension == 0)
     {
-        std::nth_element( begin, begin + centerPos, end, sortByX );
-        median = (begin + centerPos)->x();
+        //std::nth_element( begin, begin + centerPos, end, sortByX );
+        std::sort( begin, end, sortByX );
+        median = (begin + centerPos)->position.x();
     }
     else if(currentDimension == 1)
     {
-        std::nth_element( begin, begin + centerPos, end, sortByY );
-        median = (begin + centerPos)->y();
+        //std::nth_element( begin, begin + centerPos, end, sortByY );
+        std::sort( begin, end, sortByY );
+        median = (begin + centerPos)->position.y();
     }
     else
     {
-        std::nth_element( begin, begin + centerPos, end, sortByZ );
-        median = (begin + centerPos)->z();
+        //std::nth_element( begin, begin + centerPos, end, sortByZ );
+        std::sort( begin, end, sortByZ );
+        median = (begin + centerPos)->position.z();
     }
 
     KdTreeNode* childNode = new KdTreeNode; //create new node
@@ -48,18 +51,19 @@ bool inRange(const QVector3D& point, const QVector3D& min, const QVector3D& max)
 
 void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertexPtrs, KdTreeNode* node, uint depth)
 {
+    //qDebug() << "depth is" << depth;
     if(node == 0) return;
 
     unsigned int numPoints = (node->end - node->begin);
     if(numPoints == 0) return;
     else if(numPoints == 1)
     {
-        QVector3D point = *node->begin;
-        if( inRange(point, min, max) )
+        Vertex point = *node->begin;
+        if( inRange(point.position, min, max) )
         {
-            vertexPtrs.push_back((int) node->begin);
-            return;
+            vertexPtrs.push_back( (int) node->begin );
         }
+        return;
     }
 
     unsigned int currentDimension = depth % 3;
@@ -87,9 +91,9 @@ void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertex
 }
 
 // TODO: fix implementation
-QVector3D* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth)
+Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth)
 {
-    qDebug() << "depth is" << depth;
+    //qDebug() << "depth is" << depth;
 
     if(node == 0) return 0;
 

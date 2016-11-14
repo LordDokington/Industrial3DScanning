@@ -2,9 +2,10 @@
 #define VERTEXARRAYOBJECT_H
 
 #include <QOpenGLFunctions_4_3_Core>
-#include <QVector3D>
 #include <QVector>
 #include <QDebug>
+
+#include "vertex.h"
 
 class VertexArrayObject : protected QOpenGLFunctions_4_3_Core
 {
@@ -22,13 +23,22 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
-    void init(const QVector<QVector3D>& vertices, const QVector<int>& indices)
+    void init(const QVector<Vertex>& vertices, const QVector<int>& indices)
     {
         if(!m_glFunctionInitialized)
         {
             initializeOpenGLFunctions();
             m_glFunctionInitialized = true;
         }
+
+        glDeleteBuffers(1, &m_vbo);
+        glDeleteVertexArrays(1, &m_vao);
+
+        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)12);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 
         if(vertices.empty() || indices.empty())
         {
@@ -42,7 +52,7 @@ public:
         // create vertex buffer object
         glGenBuffers(1, &m_vbo);
         glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        glBufferData(GL_ARRAY_BUFFER, m_vertexCount * sizeof(QVector3D), vertices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, m_vertexCount * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // create index buffer object
@@ -56,8 +66,8 @@ public:
         glBindVertexArray(m_vao);
 
             glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(QVector3D), (char*)0);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(QVector3D), (char*)12);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)0);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)12);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
             glEnableVertexAttribArray(0);

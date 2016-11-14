@@ -7,6 +7,7 @@
 
 #include "vertexfileloader.h"
 #include "kdtree.h"
+#include "utils.h"
 
 SceneRenderer::SceneRenderer()
 {
@@ -22,19 +23,34 @@ void SceneRenderer::createSelectionWithKdTree()
 {
     KdTreeNode* tree = buildKdTree(m_vertices.begin(), m_vertices.end(), 0);
 
-    QVector3D targetPoint(0, 0, 0);
-    //QVector3D* pointRight = nearestPoint(targetPoint, tree, 0);
-    //if(pointRight != 0) m_highlightedIndices << (pointRight - m_vertices.data());
+    QVector3D min, max;
+    pointCloudBounds(m_vertices, min, max);
 
     m_highlightedIndices.clear();
-    rangeQuery(QVector3D(-1, -1, -1), QVector3D(1, 1, 1), m_highlightedIndices, tree, 0);
+    generatePointIndices(m_highlightedVertices, m_highlightedIndices);
+
+    QVector3D center(0.0008, 0.0666, 0.0699);
+    QVector3D offset(0.01, 0.01, 0.01);
+
+    m_vertices.push_back( center );
+    m_targetPointIndices.clear();
+    m_targetPointIndices.push_back(m_vertices.length() - 1);
+
+    rangeQuery(center - offset, center + offset, m_highlightedIndices, tree, 0);
 
     // index of pointers in array is pointeradress - pointeradress of first pointer since memory is linear
-    for(int& index : m_highlightedIndices) index -= (int) m_vertices.data();
-    qDebug() << "size of highlighted:" << m_highlightedIndices.size();
+    for(int& index : m_highlightedIndices)
+    {
+        index = (int) ((Vertex*) index -  m_vertices.data());
+    }
+    //qDebug() << "size of highlighted:" << m_highlightedIndices.size();
 
-    m_vertices.push_back(targetPoint);
-    m_targetPointIndices.push_back(m_vertices.length() - 1);
+    int idx = 0;
+    for(auto& vertex : m_vertices)
+    {
+        vertex.color = colorFromGradientHSV( (double) idx / m_vertices.length() );
+        ++idx;
+    }
 
     delete tree;
 }
@@ -61,7 +77,7 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     m_window->update();
 }
 
-void SceneRenderer::generatePointIndices(const QVector<QVector3D>& vertices,
+void SceneRenderer::generatePointIndices(const QVector<Vertex>& vertices,
                                          QVector<int>& indices)
 {
     indices.clear();
@@ -94,15 +110,6 @@ void SceneRenderer::setupProjection()
     m_projection.perspective(50, aspect, 0.1f, 10.0f);
 }
 
-QVector3D SceneRenderer::centerOfGravity(QVector<QVector3D>& vertices)
-{
-    QVector3D cog;
-    for(auto vertex : vertices) cog += vertex;
-    cog /= vertices.size();
-
-    return cog;
-}
-
 void SceneRenderer::paint()
 {
     if( m_isGeometryInvalidated )
@@ -122,14 +129,15 @@ void SceneRenderer::paint()
     m_program->setUniformValue("projection", m_projection);
 
     glPointSize(1);
-    m_program->setUniformValue("color", QVector4D(1, 1, 1, 1));
+    // this color acts as "switch" to enable vertex coloring
+    m_program->setUniformValue("color", QVector4D(0, 0, 0, 0));
     m_defaultVAO.draw(GL_POINTS);
 
     glPointSize(4);
-    m_program->setUniformValue("color", QVector4D(1, 0.85f, 0, 1));
+    m_program->setUniformValue("color", QVector4D(1, 1, 1, 1));
     m_highlightedVAO.draw(GL_POINTS);
 
-    glPointSize(6);
+    glPointSize(10);
     m_program->setUniformValue("color", QVector4D(1, 0, 0, 1));
     m_targetPointVAO.draw(GL_POINTS);
 
@@ -163,31 +171,38 @@ void SceneRenderer::initShader()
                                        "#version 430\n"
 
                                        "layout(location=0) in highp vec3 position;"
+                                       "layout(location=1) in highp vec3 color;"
 
                                        "uniform highp mat4 modelview;"
                                        "uniform highp mat4 projection;"
 
+                                       "out highp vec3 vertexColor;"
+
                                        "void main()"
                                        "{"
                                        "    gl_Position = projection* modelview * vec4(position, 1.0);"
+                                       "    vertexColor = color;"
                                        "}");
     m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
                                        "#version 430\n"
 
                                        "uniform highp vec4 color;"
+                                       "in highp vec3 vertexColor;"
 
                                        "void main()"
                                        "{"
-                                       "    gl_FragColor = color;"
+                                       "    gl_FragColor = (color != vec4(0.0)) ? color : vec4(vertexColor, 1.0);"
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
+    m_program->bindAttributeLocation("color", 1);
     if( !m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
 void SceneRenderer::initVertexData()
 {
     m_defaultVAO.init(m_vertices, m_indices);
+
     m_highlightedVAO.init(m_vertices, m_highlightedIndices);
     m_targetPointVAO.init(m_vertices, m_targetPointIndices);
 }
