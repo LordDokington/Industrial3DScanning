@@ -21,28 +21,21 @@ SceneRenderer::SceneRenderer()
 
 void SceneRenderer::createSelectionWithKdTree()
 {
-    KdTreeNode* tree = buildKdTree(m_vertices.begin(), m_vertices.end(), 0);
+    KdTree tree;
+    tree.build(m_vertices);
 
     QVector3D min, max;
     pointCloudBounds(m_vertices, min, max);
-
-    m_highlightedIndices.clear();
-    generatePointIndices(m_highlightedVertices, m_highlightedIndices);
 
     QVector3D center(0.0008, 0.0666, 0.0699);
     QVector3D offset(0.01, 0.01, 0.01);
 
     m_vertices.push_back( center );
+
     m_targetPointIndices.clear();
     m_targetPointIndices.push_back(m_vertices.length() - 1);
 
-    rangeQuery(center - offset, center + offset, m_highlightedIndices, tree, 0);
-
-    // index of pointers in array is pointeradress - pointeradress of first pointer since memory is linear
-    for(int& index : m_highlightedIndices)
-    {
-        index = (int) ((Vertex*) index -  m_vertices.data());
-    }
+    tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
     //qDebug() << "size of highlighted:" << m_highlightedIndices.size();
 
     int idx = 0;
@@ -51,8 +44,6 @@ void SceneRenderer::createSelectionWithKdTree()
         vertex.color = colorFromGradientHSV( (double) idx / m_vertices.length() );
         ++idx;
     }
-
-    delete tree;
 }
 
 void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)

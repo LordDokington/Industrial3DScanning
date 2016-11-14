@@ -6,29 +6,54 @@
 #include <algorithm>
 #include "vertex.h"
 
-struct KdTreeNode
-{
-    ~KdTreeNode()
-    {
-        delete leftChild;
-        delete rightChild;
-    }
-
-    float median = 0;
-
-    KdTreeNode* leftChild = 0;
-    KdTreeNode* rightChild = 0;
-
-    Vertex* begin = 0;
-    Vertex* end = 0;
-};
-
 inline bool sortByX( const QVector3D& p1, const QVector3D& p2) { return p1.x() < p2.x(); }
 inline bool sortByY( const QVector3D& p1, const QVector3D& p2) { return p1.y() < p2.y(); }
 inline bool sortByZ( const QVector3D& p1, const QVector3D& p2) { return p1.z() < p2.z(); }
 
-KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, unsigned int depth);
-Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth);
-void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertexPtrs, KdTreeNode* node, uint depth);
+inline bool inRange(const QVector3D& point, const QVector3D& min, const QVector3D& max)
+{
+    return point.x() >= min.x() && point.x() <= max.x() &&
+           point.y() >= min.y() && point.y() <= max.y() &&
+           point.z() >= min.z() && point.z() <= max.z();
+}
 
+class KdTree
+{
+public:
+    KdTree() {}
+
+    void build(QVector<Vertex>& vertices);
+
+    ~KdTree() { delete m_tree; }
+
+    void pointsInBox(const QVector3D& min, const QVector3D& max, QVector<int>& indices);
+    void pointsInSphere(const QVector3D& center, const float distance, QVector<int>& indices);
+
+private:
+    struct KdTreeNode
+    {
+        ~KdTreeNode()
+        {
+            delete leftChild;
+            delete rightChild;
+        }
+
+        float median = 0;
+
+        KdTreeNode* leftChild = 0;
+        KdTreeNode* rightChild = 0;
+
+        Vertex* begin = 0;
+        Vertex* end = 0;
+    };
+
+    KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, unsigned int depth);
+    void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& indices, KdTreeNode* node, uint depth);
+
+    // FIXME: finish implementation
+    Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth);
+
+    KdTreeNode* m_tree = 0;
+    Vertex* m_vertexArrayPointer = 0;
+};
 #endif // KDTREE_H

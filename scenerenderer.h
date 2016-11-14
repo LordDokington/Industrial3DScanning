@@ -102,7 +102,6 @@ private:
     QQuickWindow* m_window = 0;
 
     QVector<Vertex> m_vertices;
-    QVector<Vertex> m_highlightedVertices;
     QVector<int> m_indices;
     QVector<int> m_highlightedIndices;
     QVector<int> m_targetPointIndices;

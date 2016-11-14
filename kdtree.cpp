@@ -1,7 +1,35 @@
 #include "kdtree.h"
 #include <QDebug>
 
-KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, uint depth)
+void KdTree::build(QVector<Vertex>& vertices)
+{
+    delete m_tree;
+    m_tree = buildKdTree(vertices.begin(), vertices.end(), 0);
+    m_vertexArrayPointer = vertices.data();
+}
+
+void KdTree::pointsInBox(const QVector3D& min, const QVector3D& max, QVector<int>& indices)
+{
+    if(!m_tree || !m_vertexArrayPointer) return;
+
+    rangeQuery(min, max, indices, m_tree, 0);
+    // index of pointers in array is pointeradress - pointeradress of first pointer since memory is linear
+    for(int& index : indices)
+        index = (int) ((Vertex*) index - m_vertexArrayPointer);
+}
+
+void KdTree::pointsInSphere(const QVector3D& center, const float distance, QVector<int>& indices)
+{
+    if(!m_tree || !m_vertexArrayPointer) return;
+
+    QVector3D min = center - QVector3D(distance, distance, distance);
+    QVector3D max = center + QVector3D(distance, distance, distance);
+    rangeQuery(min, max, indices, m_tree, 0);
+    for(int& index : indices)
+        index = (int) ((Vertex*) index - m_vertexArrayPointer);
+}
+
+KdTree::KdTreeNode* KdTree::buildKdTree(Vertex* begin, Vertex* end, uint depth)
 {
     unsigned int currentDimension = depth % 3;
     unsigned int numPoints = (end - begin);
@@ -11,20 +39,17 @@ KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, uint depth)
 
     if(currentDimension == 0)
     {
-        //std::nth_element( begin, begin + centerPos, end, sortByX );
-        std::sort( begin, end, sortByX );
+        std::nth_element( begin, begin + centerPos, end, sortByX );
         median = (begin + centerPos)->position.x();
     }
     else if(currentDimension == 1)
     {
-        //std::nth_element( begin, begin + centerPos, end, sortByY );
-        std::sort( begin, end, sortByY );
+        std::nth_element( begin, begin + centerPos, end, sortByY );
         median = (begin + centerPos)->position.y();
     }
     else
     {
-        //std::nth_element( begin, begin + centerPos, end, sortByZ );
-        std::sort( begin, end, sortByZ );
+        std::nth_element( begin, begin + centerPos, end, sortByZ );
         median = (begin + centerPos)->position.z();
     }
 
@@ -42,14 +67,7 @@ KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, uint depth)
     return childNode;
 }
 
-bool inRange(const QVector3D& point, const QVector3D& min, const QVector3D& max)
-{
-    return point.x() >= min.x() && point.x() <= max.x() &&
-           point.y() >= min.y() && point.y() <= max.y() &&
-           point.z() >= min.z() && point.z() <= max.z();
-}
-
-void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertexPtrs, KdTreeNode* node, uint depth)
+void KdTree::rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertexPtrs, KdTreeNode* node, uint depth)
 {
     //qDebug() << "depth is" << depth;
     if(node == 0) return;
@@ -91,7 +109,7 @@ void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& vertex
 }
 
 // TODO: fix implementation
-Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth)
+Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth)
 {
     //qDebug() << "depth is" << depth;
 
