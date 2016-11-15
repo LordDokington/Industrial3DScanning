@@ -10,6 +10,9 @@ class SceneRendererQMLWrapper : public QQuickItem
 {
     Q_OBJECT
     Q_PROPERTY(QString geometryFilePath READ geometryFilePath WRITE setGeometryFilePath)
+    Q_PROPERTY(float zDistance READ zDistance WRITE setZDistance)
+
+    Q_PROPERTY(bool usePerVertexColor READ usePerVertexColor WRITE setUsePerVertexColor)
 
 public:
     SceneRendererQMLWrapper()
@@ -17,16 +20,37 @@ public:
         connect(this, &QQuickItem::windowChanged, this, &SceneRendererQMLWrapper::handleWindowChanged);
     }
 
+    const QString& geometryFilePath()
+    {
+        if( !m_sceneRenderer ) return QString();
+        return m_sceneRenderer->geometryFilePath();
+    }
     void setGeometryFilePath(const QString& geometryFilePath)
     {
         if( !m_sceneRenderer ) return;
         m_sceneRenderer->setGeometryFilePath(geometryFilePath);
     }
 
-    const QString& geometryFilePath()
+    const float zDistance()
     {
-        if( !m_sceneRenderer ) return QString();
-        return m_sceneRenderer->geometryFilePath();
+        if( !m_sceneRenderer ) return 0;
+        return m_sceneRenderer->zDistance();
+    }
+    void setZDistance(const float zDistance)
+    {
+        if( !m_sceneRenderer ) return;
+        m_sceneRenderer->setZDistance(zDistance);
+    }
+
+    const bool usePerVertexColor()
+    {
+        if( !m_sceneRenderer ) return true;
+        return m_sceneRenderer->vertexColor() == QVector4D();
+    }
+    void setUsePerVertexColor(const bool enabled)
+    {
+        if( !m_sceneRenderer ) return;
+        m_sceneRenderer->setVertexColor(enabled ? QVector4D() : QVector4D(1, 171.0f / 255, 51.0f / 255, 1));
     }
 
     Q_INVOKABLE void rotate(float x1, float y1, float x2, float y2)
