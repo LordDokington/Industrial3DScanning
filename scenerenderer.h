@@ -29,6 +29,8 @@ public:
 
     ~SceneRenderer()
     {
+        delete m_vertexBufferPing;
+        delete m_vertexBufferPong;
         delete m_program;
     }
 
@@ -80,6 +82,9 @@ public:
         }
     }
 
+    void smoothMesh(float radius);
+    void undoSmooth();
+
     void rotate(float x1, float y1, float x2, float y2);
 
     void setViewportSize(const QSize& viewportSize)
@@ -121,7 +126,9 @@ private:
     QString m_geometryFilePath;
     QQuickWindow* m_window = 0;
 
-    QVector<Vertex> m_vertices;
+    QVector<Vertex>* m_vertexBufferPing = 0;
+    QVector<Vertex>* m_vertexBufferPong = 0;
+
     QVector<int> m_indices;
     QVector<int> m_highlightedIndices;
     QVector<int> m_targetPointIndices;
@@ -136,7 +143,18 @@ private:
     VertexArrayObject m_highlightedVAO;
     VertexArrayObject m_targetPointVAO;
 
+    QVector4D m_vertexColor;
+
+    KdTree m_tree;
+
     bool m_isGeometryInvalidated = false;
+
+    void swapVertexBuffers()
+    {
+        QVector<Vertex>* swap = m_vertexBufferPing;
+        m_vertexBufferPing = m_vertexBufferPong;
+        m_vertexBufferPong = swap;
+    }
 
     void initVertexData();
     void initShader();
@@ -151,8 +169,6 @@ private:
     void setupProjection();
 
     float m_zDistance = 0.3f;
-
-    QVector4D m_vertexColor;
 };
 
 #endif // SCENERENDERER_H

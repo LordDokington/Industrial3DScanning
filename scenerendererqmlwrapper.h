@@ -59,6 +59,18 @@ public:
         m_sceneRenderer->rotate(x1, y1, x2, y2);
     }
 
+    Q_INVOKABLE void smoothMesh(float radius)
+    {
+        if(!m_sceneRenderer) return;
+        m_sceneRenderer->smoothMesh(radius);
+    }
+
+    Q_INVOKABLE void undoSmooth()
+    {
+        if(!m_sceneRenderer) return;
+        m_sceneRenderer->undoSmooth();
+    }
+
 public slots:
     void handleWindowChanged(QQuickWindow *window)
     {

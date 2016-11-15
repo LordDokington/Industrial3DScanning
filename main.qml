@@ -12,6 +12,9 @@ ApplicationWindow {
 
     title: qsTr("3D Scanning App")
 
+    property bool justSmoothed: false
+    property color uiColor: "#44DDDDDD"
+
     SceneRenderer {
         id: sceneRenderer
 
@@ -72,8 +75,10 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.topMargin: 50
 
-        width: 120
+        width: 200
         height: 90
+
+        color: uiColor
 
         ColumnLayout {
             anchors.fill: parent
@@ -95,6 +100,63 @@ ApplicationWindow {
                 text: "KdTree"
                 checked: true
                 exclusiveGroup: vertexColorGroup
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 200
+
+        width: 200
+        height: 120
+
+        color: uiColor
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+
+            Text {
+                font.bold: true
+                text: "smoothing"
+            }
+
+            RowLayout {
+                Text { text: "radius:" }
+
+                TextInput {
+                    id: radiusInput
+                    text: "0.005"
+                    Layout.fillWidth: true
+                }
+            }
+
+            RowLayout {
+                Button {
+                    text: "smooth"
+
+                    Layout.fillWidth: true
+
+                    onClicked: {
+                        sceneRenderer.smoothMesh( parseFloat(radiusInput.text) )
+                        justSmoothed = true
+                    }
+                }
+
+                Button {
+                    text: "undo"
+
+                    enabled: justSmoothed
+
+                    Layout.fillWidth: true
+
+                    onClicked: {
+                        sceneRenderer.undoSmooth()
+                        justSmoothed = false
+                    }
+                }
             }
         }
     }

@@ -11,8 +11,11 @@
 
 SceneRenderer::SceneRenderer()
 {
-    VertexFileLoader::cubePointCloudVertices(50, 0.1f, m_vertices);
-    generatePointIndices(m_vertices, m_indices);
+    m_vertexBufferPing = new QVector<Vertex>();
+    m_vertexBufferPong = new QVector<Vertex>();
+
+    VertexFileLoader::cubePointCloudVertices(30, 0.1f, *m_vertexBufferPing);
+    generatePointIndices(*m_vertexBufferPing, m_indices);
 
     createSelectionWithKdTree();
 
@@ -21,29 +24,28 @@ SceneRenderer::SceneRenderer()
 
 void SceneRenderer::createSelectionWithKdTree()
 {
-    KdTree tree;
-    tree.build(m_vertices);
+    m_tree.build(*m_vertexBufferPing);
 
     QVector3D min, max;
-    pointCloudBounds(m_vertices, min, max);
+    pointCloudBounds(*m_vertexBufferPing, min, max);
 
-    QVector3D center(0.0008, 0.0666, 0.0699);
+    QVector3D center(-0.0008, 0.0666, 0.0699);
     QVector3D offset(0.01, 0.01, 0.01);
 
-    m_vertices.push_back( center );
+    m_vertexBufferPing->push_back( center );
 
     m_targetPointIndices.clear();
-    m_targetPointIndices.push_back(m_vertices.length() - 1);
+    m_targetPointIndices.push_back(m_vertexBufferPing->length() - 1);
 
     m_highlightedIndices.clear();
-    //tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
-    tree.pointsInSphere(center, 0.01, m_highlightedIndices);
+    //m_tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
+    m_tree.pointsInSphere(center, 0.01, m_highlightedIndices);
     //qDebug() << "size of highlighted:" << m_highlightedIndices.size();
 
     int idx = 0;
-    for(auto& vertex : m_vertices)
+    for(auto& vertex : *m_vertexBufferPing)
     {
-        vertex.color = colorFromGradientHSV( (double) idx / m_vertices.length() );
+        vertex.color = colorFromGradientHSV( (double) idx / m_vertexBufferPing->length() );
         ++idx;
     }
 }
@@ -53,9 +55,9 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     m_geometryFilePath = geometryFilePath;
 
     char* stringByteData = m_geometryFilePath.toLatin1().data();
-    VertexFileLoader::loadVerticesFromFile(stringByteData, m_vertices);
+    VertexFileLoader::loadVerticesFromFile(stringByteData, *m_vertexBufferPing);
 
-    generatePointIndices(m_vertices, m_indices);
+    generatePointIndices(*m_vertexBufferPing, m_indices);
 
     createSelectionWithKdTree();
 
@@ -82,7 +84,7 @@ void SceneRenderer::setupModelView()
 {
     m_modelview = m_rotation;
 
-    QVector3D cog = centerOfGravity(m_vertices);
+    QVector3D cog = centerOfGravity(*m_vertexBufferPing);
     m_modelview.translate(-cog);
 
     QMatrix4x4 view;
@@ -194,10 +196,10 @@ void SceneRenderer::initShader()
 
 void SceneRenderer::initVertexData()
 {
-    m_defaultVAO.init(m_vertices, m_indices);
+    m_defaultVAO.init(*m_vertexBufferPing, m_indices);
 
-    m_highlightedVAO.init(m_vertices, m_highlightedIndices);
-    m_targetPointVAO.init(m_vertices, m_targetPointIndices);
+    m_highlightedVAO.init(*m_vertexBufferPing, m_highlightedIndices);
+    m_targetPointVAO.init(*m_vertexBufferPing, m_targetPointIndices);
 }
 
 void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float currposY)
@@ -231,4 +233,49 @@ void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float
     setupModelView();
     // schedule repaint for next frame
     m_window->update();
+}
+
+void SceneRenderer::smoothMesh(float radius)
+{
+    m_tree.build(*m_vertexBufferPing);
+
+    QVector<int> indicesInRange;
+    m_vertexBufferPong->clear();
+
+    int counter = 0;
+    for(const auto vertex : *m_vertexBufferPing)
+    {
+        m_tree.pointsInSphere(vertex.position, radius, indicesInRange);
+
+        if(counter++ % 100 == 0)
+            qDebug() << indicesInRange.length() << " indices in neighborhood";
+
+        if(indicesInRange.empty())
+        {
+            m_vertexBufferPong->append(vertex);
+            continue;
+        }
+
+        QVector3D newPosition;
+        for(int index: indicesInRange)
+        {
+            newPosition += m_vertexBufferPing->at(index).position;
+        }
+
+        newPosition /= indicesInRange.length();
+        m_vertexBufferPong->append(newPosition);
+    }
+
+    swapVertexBuffers();
+
+    // trigger recreation of vertex buffers
+    m_isGeometryInvalidated = true;
+}
+
+void SceneRenderer::undoSmooth()
+{
+    swapVertexBuffers();
+
+    // trigger recreation of vertex buffers
+    m_isGeometryInvalidated = true;
 }
