@@ -5,9 +5,7 @@ void KdTree::build(QVector<Vertex>& vertices)
 {
     delete m_tree;
     m_tree = buildKdTree(vertices.begin(), vertices.end(), 0);
-    QVector<Vertex> smoothVertices(vertices.size());
-    smoothing(vertices, 5.0, smoothVertices);
-    m_vertexArrayPointer = smoothVertices.data();
+    m_vertexArrayPointer = vertices.data();
 }
 
 void KdTree::pointsInBox(const QVector3D& min, const QVector3D& max, QVector<int>& indices)
@@ -180,32 +178,5 @@ Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint dept
                 nearestPoint(point, node->rightChild, depth+1) :
                 nearestPoint(point, node->leftChild, depth+1);
         }
-    }
-}
-
-void KdTree::smoothing(const QVector<Vertex>& vertices, const float distance, QVector<Vertex>& smoothVertices)
-{
-    QVector<int> neighbors;
-    for (int i = 0; i < vertices.size(); ++i) {
-        const QVector3D &p = vertices[i].position;
-        pointsInSphere(p, distance, neighbors);
-
-        if (neighbors.empty()) continue;
-        if (neighbors.size() == 1) {
-            smoothVertices[i] = vertices[i];
-            continue;
-        }
-
-        QVector3D mean(0,0,0);
-        double totalWeight = 0;
-        for (int j = 0; j < neighbors.size(); ++j) {
-            const QVector3D &n = vertices[neighbors[j]].position;
-            double dist = n.distanceToPoint(p);
-            double weight = std::exp(-dist/distance);
-            mean += n*weight;
-            totalWeight += weight;
-        }
-        mean /= totalWeight;
-        smoothVertices[i] = Vertex(mean);
     }
 }

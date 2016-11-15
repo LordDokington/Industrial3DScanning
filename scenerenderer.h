@@ -82,7 +82,7 @@ public:
         }
     }
 
-    void smoothMesh(float radius);
+    void smoothMesh(const float radius);
     void undoSmooth();
 
     void rotate(float x1, float y1, float x2, float y2);

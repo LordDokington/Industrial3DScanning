@@ -4,6 +4,7 @@
 #include <QOpenGLContext>
 #include <QQuickWindow>
 #include <QtMath>
+#include <algorithm>
 
 #include "vertexfileloader.h"
 #include "kdtree.h"
@@ -235,10 +236,11 @@ void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float
     m_window->update();
 }
 
-void SceneRenderer::smoothMesh(float radius)
+void SceneRenderer::smoothMesh(const float radius)
 {
     m_tree.build(*m_vertexBufferPing);
 
+    /*
     QVector<int> indicesInRange;
     m_vertexBufferPong->clear();
 
@@ -264,6 +266,32 @@ void SceneRenderer::smoothMesh(float radius)
 
         newPosition /= indicesInRange.length();
         m_vertexBufferPong->append(newPosition);
+    }
+    */
+    QVector<int> neighbors;
+    for(const auto vertex : *m_vertexBufferPing)
+    {
+        const QVector3D &p = vertex.position;
+        m_tree.pointsInSphere(p, radius, neighbors);
+
+        if(neighbors.empty())
+        {
+            m_vertexBufferPong->append(vertex);
+            continue;
+        }
+
+        QVector3D mean(0,0,0);
+        double totalWeight = 0;
+        for(int index: neighbors)
+        {
+            const QVector3D neighbor = m_vertexBufferPing->at(index).position;
+            double dist = neighbor.distanceToPoint(p);
+            double weight = std::exp( -dist/radius );
+            mean += neighbor*weight;
+            totalWeight += weight;
+        }
+        mean /= totalWeight;
+        m_vertexBufferPong->append( Vertex(mean) );
     }
 
     swapVertexBuffers();
