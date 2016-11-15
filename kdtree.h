@@ -53,6 +53,8 @@ private:
     // FIXME: finish implementation
     Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth);
 
+    void smoothing(const QVector<Vertex>& vertices, const float distance, QVector<Vertex>& smoothVertices);
+
     KdTreeNode* m_tree = 0;
     Vertex* m_vertexArrayPointer = 0;
 };
