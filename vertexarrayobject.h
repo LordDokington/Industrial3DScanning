@@ -34,12 +34,6 @@ public:
         glDeleteBuffers(1, &m_vbo);
         glDeleteVertexArrays(1, &m_vao);
 
-        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)12);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-
         if(vertices.empty() || indices.empty())
         {
             qDebug() << "VertexArrayObject::init(): vertex or index array is empty, VAO not created";

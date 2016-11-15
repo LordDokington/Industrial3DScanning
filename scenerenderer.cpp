@@ -35,7 +35,9 @@ void SceneRenderer::createSelectionWithKdTree()
     m_targetPointIndices.clear();
     m_targetPointIndices.push_back(m_vertices.length() - 1);
 
-    tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
+    m_highlightedIndices.clear();
+    //tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
+    tree.pointsInSphere(center, 0.01, m_highlightedIndices);
     //qDebug() << "size of highlighted:" << m_highlightedIndices.size();
 
     int idx = 0;
@@ -85,7 +87,7 @@ void SceneRenderer::setupModelView()
 
     QMatrix4x4 view;
 
-    QVector3D eye(0, 0, 0.3f);
+    QVector3D eye(0, 0, m_zDistance);
     QVector3D center(0, 0, 0);
     QVector3D up(0, 1.f, 0);
 
@@ -98,7 +100,7 @@ void SceneRenderer::setupProjection()
 {
     m_projection = QMatrix4x4();
     float aspect = m_viewportSize.width() / (float) m_viewportSize.height();
-    m_projection.perspective(50, aspect, 0.1f, 10.0f);
+    m_projection.perspective(50, aspect, 0.01f, 2.0f);
 }
 
 void SceneRenderer::paint()
@@ -121,7 +123,7 @@ void SceneRenderer::paint()
 
     glPointSize(1);
     // this color acts as "switch" to enable vertex coloring
-    m_program->setUniformValue("color", QVector4D(0, 0, 0, 0));
+    m_program->setUniformValue("color", m_vertexColor);
     m_defaultVAO.draw(GL_POINTS);
 
     glPointSize(4);

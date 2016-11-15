@@ -14,21 +14,31 @@ void KdTree::pointsInBox(const QVector3D& min, const QVector3D& max, QVector<int
 {
     if(!m_tree || !m_vertexArrayPointer) return;
 
+    indices.clear();
     rangeQuery(min, max, indices, m_tree, 0);
     // index of pointers in array is pointeradress - pointeradress of first pointer since memory is linear
-    for(int& index : indices)
-        index = (int) ((Vertex*) index - m_vertexArrayPointer);
+    for(int& index : indices) index = (int) ((Vertex*) index - m_vertexArrayPointer);
 }
 
 void KdTree::pointsInSphere(const QVector3D& center, const float distance, QVector<int>& indices)
 {
     if(!m_tree || !m_vertexArrayPointer) return;
 
+    indices.clear();
     QVector3D min = center - QVector3D(distance, distance, distance);
     QVector3D max = center + QVector3D(distance, distance, distance);
     rangeQuery(min, max, indices, m_tree, 0);
-    for(int& index : indices)
-        index = (int) ((Vertex*) index - m_vertexArrayPointer);
+    for(int& index : indices) index = (int) ((Vertex*) index - m_vertexArrayPointer);
+
+    int i=0;
+    while(i < indices.length())
+    {
+        int index = indices[i];
+        if( center.distanceToPoint(m_vertexArrayPointer[index]) > distance )
+            indices.removeAt(i);
+        else
+            ++i;
+    }
 }
 
 KdTree::KdTreeNode* KdTree::buildKdTree(Vertex* begin, Vertex* end, uint depth)
@@ -79,10 +89,7 @@ void KdTree::rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>
     else if(numPoints == 1)
     {
         Vertex point = *node->begin;
-        if( inRange(point.position, min, max) )
-        {
-            vertexPtrs.push_back( (int) node->begin );
-        }
+        if( inRange(point.position, min, max) ) vertexPtrs.push_back( (int) node->begin );
         return;
     }
 

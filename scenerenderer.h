@@ -87,7 +87,27 @@ public:
         m_viewportSize = viewportSize;
         setupProjection();
     }
+
     void setWindow(QQuickWindow* window) { m_window = window; }
+
+    const float zDistance()
+    {
+        return m_zDistance;
+    }
+    void setZDistance(const float zDistance)
+    {
+        m_zDistance = zDistance;
+        setupModelView();
+    }
+
+    const QVector4D& vertexColor()
+    {
+        return m_vertexColor;
+    }
+    void setVertexColor(const QVector4D& vertexColor)
+    {
+        m_vertexColor = vertexColor;
+    }
 
     void setGeometryFilePath(const QString& geometryFilePath);
     QString& geometryFilePath() { return m_geometryFilePath; }
@@ -129,6 +149,10 @@ private:
 
     void setupModelView();
     void setupProjection();
+
+    float m_zDistance = 0.3f;
+
+    QVector4D m_vertexColor;
 };
 
 #endif // SCENERENDERER_H
