@@ -240,39 +240,16 @@ void SceneRenderer::smoothMesh(const float radius)
 {
     m_tree.build(*m_vertexBufferPing);
 
-    /*
-    QVector<int> indicesInRange;
+    QVector<int> neighbors;
     m_vertexBufferPong->clear();
 
     int counter = 0;
     for(const auto vertex : *m_vertexBufferPing)
     {
-        m_tree.pointsInSphere(vertex.position, radius, indicesInRange);
+        m_tree.pointsInSphere(vertex.position, radius, neighbors);
 
         if(counter++ % 100 == 0)
-            qDebug() << indicesInRange.length() << " indices in neighborhood";
-
-        if(indicesInRange.empty())
-        {
-            m_vertexBufferPong->append(vertex);
-            continue;
-        }
-
-        QVector3D newPosition;
-        for(int index: indicesInRange)
-        {
-            newPosition += m_vertexBufferPing->at(index).position;
-        }
-
-        newPosition /= indicesInRange.length();
-        m_vertexBufferPong->append(newPosition);
-    }
-    */
-    QVector<int> neighbors;
-    for(const auto vertex : *m_vertexBufferPing)
-    {
-        const QVector3D &p = vertex.position;
-        m_tree.pointsInSphere(p, radius, neighbors);
+            qDebug() << neighbors.length() << " indices in neighborhood";
 
         if(neighbors.empty())
         {
@@ -280,18 +257,20 @@ void SceneRenderer::smoothMesh(const float radius)
             continue;
         }
 
-        QVector3D mean(0,0,0);
+        QVector3D meanPosition;
         double totalWeight = 0;
         for(int index: neighbors)
         {
             const QVector3D neighbor = m_vertexBufferPing->at(index).position;
-            double dist = neighbor.distanceToPoint(p);
+            double dist = neighbor.distanceToPoint(vertex.position);
             double weight = std::exp( -dist/radius );
-            mean += neighbor*weight;
+
+            meanPosition += weight * neighbor;
             totalWeight += weight;
         }
-        mean /= totalWeight;
-        m_vertexBufferPong->append( Vertex(mean) );
+
+        meanPosition /= totalWeight;
+        m_vertexBufferPong->append( meanPosition );
     }
 
     swapVertexBuffers();
