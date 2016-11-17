@@ -244,6 +244,7 @@ void SceneRenderer::smoothMesh(const float radius)
     m_vertexBufferPong->clear();
 
     int counter = 0;
+    #pragma omp parallel for
     for(const auto vertex : *m_vertexBufferPing)
     {
         m_tree.pointsInSphere(vertex.position, radius, neighbors);
