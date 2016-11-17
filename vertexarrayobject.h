@@ -32,6 +32,7 @@ public:
         }
 
         glDeleteBuffers(1, &m_vbo);
+        glDeleteBuffers(1, &m_ibo);
         glDeleteVertexArrays(1, &m_vao);
 
         if(vertices.empty() || indices.empty())

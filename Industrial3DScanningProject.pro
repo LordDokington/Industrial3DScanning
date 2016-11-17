@@ -11,7 +11,8 @@ OTHER_FILES += \
     main.qml \
     bunny.xyz
 
-QMAKE_CXXFLAGS += -fopenmp
+QMAKE_CXXFLAGS+= -fopenmp
+QMAKE_LFLAGS +=  -fopenmp
 LIBS += -fopenmp
 
 # Additional import path used to resolve QML modules in Qt Creator's code model

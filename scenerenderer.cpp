@@ -5,6 +5,7 @@
 #include <QQuickWindow>
 #include <QtMath>
 #include <algorithm>
+#include <omp.h>
 
 #include "vertexfileloader.h"
 #include "kdtree.h"
@@ -198,7 +199,6 @@ void SceneRenderer::initShader()
 void SceneRenderer::initVertexData()
 {
     m_defaultVAO.init(*m_vertexBufferPing, m_indices);
-
     m_highlightedVAO.init(*m_vertexBufferPing, m_highlightedIndices);
     m_targetPointVAO.init(*m_vertexBufferPing, m_targetPointIndices);
 }
@@ -238,6 +238,9 @@ void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float
 
 void SceneRenderer::smoothMesh(const float radius)
 {
+    // selection highlight will become incorrect, remove it
+    m_highlightedIndices.clear();
+
     m_tree.build(*m_vertexBufferPing);
 
     QVector<int> neighbors;

@@ -50,7 +50,7 @@ private:
     void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& indices, KdTreeNode* node, uint depth);
 
     // FIXME: finish implementation
-    Vertex* nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth);
+    Vertex* nearestPointApprox(const QVector3D& point, KdTreeNode* node, uint depth);
 
     KdTreeNode* m_tree = 0;
     Vertex* m_vertexArrayPointer = 0;

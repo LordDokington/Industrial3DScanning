@@ -115,11 +115,8 @@ void KdTree::rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>
     }
 }
 
-// TODO: fix implementation
-Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint depth)
+Vertex* KdTree::nearestPointApprox(const QVector3D& point, KdTreeNode* node, uint depth)
 {
-    //qDebug() << "depth is" << depth;
-
     if(node == 0) return 0;
 
     unsigned int numPoints = (node->end - node->begin);
@@ -139,14 +136,14 @@ Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint dept
         if(point.x() <= node->median)
         {
             return node->leftChild ?
-                nearestPoint(point, node->leftChild, depth+1) :
-                nearestPoint(point, node->rightChild, depth+1);
+                nearestPointApprox(point, node->leftChild, depth+1) :
+                nearestPointApprox(point, node->rightChild, depth+1);
         }
         else
         {
             return node->rightChild ?
-                nearestPoint(point, node->rightChild, depth+1) :
-                nearestPoint(point, node->leftChild, depth+1);
+                nearestPointApprox(point, node->rightChild, depth+1) :
+                nearestPointApprox(point, node->leftChild, depth+1);
         }
     }
     else if(currentDimension == 1)
@@ -154,14 +151,14 @@ Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint dept
         if(point.y() <= node->median)
         {
             return node->leftChild ?
-                nearestPoint(point, node->leftChild, depth+1) :
-                nearestPoint(point, node->rightChild, depth+1);
+                nearestPointApprox(point, node->leftChild, depth+1) :
+                nearestPointApprox(point, node->rightChild, depth+1);
         }
         else
         {
             return node->rightChild ?
-                nearestPoint(point, node->rightChild, depth+1) :
-                nearestPoint(point, node->leftChild, depth+1);
+                nearestPointApprox(point, node->rightChild, depth+1) :
+                nearestPointApprox(point, node->leftChild, depth+1);
         }
     }
     else
@@ -169,14 +166,14 @@ Vertex* KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, uint dept
         if(point.z() <= node->median)
         {
             return node->leftChild ?
-                nearestPoint(point, node->leftChild, depth+1) :
-                nearestPoint(point, node->rightChild, depth+1);
+                nearestPointApprox(point, node->leftChild, depth+1) :
+                nearestPointApprox(point, node->rightChild, depth+1);
         }
         else
         {
             return node->rightChild ?
-                nearestPoint(point, node->rightChild, depth+1) :
-                nearestPoint(point, node->leftChild, depth+1);
+                nearestPointApprox(point, node->rightChild, depth+1) :
+                nearestPointApprox(point, node->leftChild, depth+1);
         }
     }
 }
