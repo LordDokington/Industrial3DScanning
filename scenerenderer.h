@@ -156,6 +156,9 @@ private:
         m_vertexBufferPong = swap;
     }
 
+    QVector3D fittedPlaneNormal(QVector<const Vertex*> vertices);
+    void estimateNormalsForPingBuffer(float planeFitRadius);
+
     void initVertexData();
     void initShader();
 

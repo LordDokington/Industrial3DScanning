@@ -16,8 +16,11 @@ SceneRenderer::SceneRenderer()
     m_vertexBufferPing = new QVector<Vertex>();
     m_vertexBufferPong = new QVector<Vertex>();
 
-    VertexFileLoader::cubePointCloudVertices(30, 0.1f, *m_vertexBufferPing);
+    VertexFileLoader::cubePointCloudVertices(200, 0.1f, *m_vertexBufferPing);
     generatePointIndices(*m_vertexBufferPing, m_indices);
+
+    estimateNormalsForPingBuffer(0.001f);
+
 
     createSelectionWithKdTree();
 
@@ -60,6 +63,8 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     VertexFileLoader::loadVerticesFromFile(stringByteData, *m_vertexBufferPing);
 
     generatePointIndices(*m_vertexBufferPing, m_indices);
+
+    estimateNormalsForPingBuffer(0.001f);
 
     createSelectionWithKdTree();
 
@@ -125,7 +130,7 @@ void SceneRenderer::paint()
     m_program->setUniformValue("modelview", m_modelview);
     m_program->setUniformValue("projection", m_projection);
 
-    glPointSize(1);
+    glPointSize(2);
     // this color acts as "switch" to enable vertex coloring
     m_program->setUniformValue("color", m_vertexColor);
     m_defaultVAO.draw(GL_POINTS);
@@ -168,17 +173,22 @@ void SceneRenderer::initShader()
                                        "#version 430\n"
 
                                        "layout(location=0) in highp vec3 position;"
-                                       "layout(location=1) in highp vec3 color;"
+                                       "layout(location=1) in highp vec3 normal;"
+                                       "layout(location=2) in highp vec3 color;"
 
                                        "uniform highp mat4 modelview;"
                                        "uniform highp mat4 projection;"
 
                                        "out highp vec3 vertexColor;"
+                                       "out highp vec3 ws_normal;"
+                                       "out highp vec3 ws_position;"
 
                                        "void main()"
                                        "{"
                                        "    gl_Position = projection* modelview * vec4(position, 1.0);"
                                        "    vertexColor = color;"
+                                       "    ws_normal = normal;"
+                                       "    ws_position = position;"
                                        "}");
     m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
                                        "#version 430\n"
@@ -186,13 +196,23 @@ void SceneRenderer::initShader()
                                        "uniform highp vec4 color;"
                                        "in highp vec3 vertexColor;"
 
+                                       "in highp vec3 ws_normal;"
+                                       "in highp vec3 ws_position;"
+
                                        "void main()"
                                        "{"
-                                       "    gl_FragColor = (color != vec4(0.0)) ? color : vec4(vertexColor, 1.0);"
+                                       "    vec3 view = normalize(-ws_position);"
+                                       "    vec3 light = normalize(vec3(1.0, 1.0, 1.0) - ws_position);"
+                                       "    float diffuse = max( dot(light, ws_normal), dot(light, -ws_normal));"
+
+                                       "    vec4 baseColor = (color != vec4(0.0)) ? color : vec4(vertexColor, 1.0);"
+                                       "    gl_FragColor = diffuse * baseColor;"
+                                       "    gl_FragColor.a = 1.0;"
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
-    m_program->bindAttributeLocation("color", 1);
+    m_program->bindAttributeLocation("normal", 1);
+    m_program->bindAttributeLocation("color", 2);
     if( !m_program->link() ) qWarning() << "linking of shader failed!";
 }
 
@@ -247,7 +267,8 @@ void SceneRenderer::smoothMesh(const float radius)
     m_vertexBufferPong->clear();
 
     int counter = 0;
-    #pragma omp parallel for
+
+    //#pragma omp parallel for
     for(const auto vertex : *m_vertexBufferPing)
     {
         m_tree.pointsInSphere(vertex.position, radius, neighbors);
@@ -289,4 +310,98 @@ void SceneRenderer::undoSmooth()
 
     // trigger recreation of vertex buffers
     m_isGeometryInvalidated = true;
+}
+
+QVector3D SceneRenderer::fittedPlaneNormal(QVector<const Vertex*> vertices)
+{
+    int numPoints = vertices.length();
+
+    if(numPoints < 3)
+    {
+        qWarning() << "At least three points are needed to fit plane";
+        return QVector3D();
+    }
+
+    // center of gravity
+    QVector3D cog;
+    for(auto vertex : vertices) cog += vertex->position;
+    cog /= numPoints;
+
+    // calc full 3x3 covariance matrix, excluding symmetries:
+    double xx = 0.0;
+    double xy = 0.0;
+    double xz = 0.0;
+    double yy = 0.0;
+    double yz = 0.0;
+    double zz = 0.0;
+
+    for(auto vertex : vertices)
+    {
+        QVector3D r = vertex->position - cog;
+        xx += r.x() * r.x();
+        xy += r.x() * r.y();
+        xz += r.x() * r.z();
+        yy += r.y() * r.y();
+        yz += r.y() * r.z();
+        zz += r.z() * r.z();
+    }
+
+    // determinants from cramers rule
+    double det_x = yy*zz - yz*yz;
+    double det_y = xx*zz - xz*xz;
+    double det_z = xx*yy - xy*xy;
+
+    double det_max = std::max( det_x, std::max(det_y, det_z) );
+    if(det_max <= 0.0)
+    {
+        qWarning() << "the points do not span a plane (are collinear)";
+        return QVector3D();
+    }
+
+    QVector3D normal;
+
+    // pick largest determinant
+    if(det_max == det_x)
+    {
+        double y = (xz*yz - xy*zz) / det_x;
+        double z = (xy*yz - xz*yy) / det_x;
+        normal = QVector3D(1.0, y, z);
+    }
+    else if(det_max == det_y)
+    {
+        double x = (yz*xz - xy*zz) / det_y;
+        double z = (xy*xz - yz*xx) / det_y;
+        normal = QVector3D(x, 1.0, z);
+    }
+    else
+    {
+        double x = (yz*xy - xz*yy) / det_z;
+        double y = (xz*xy - yz*xx) / det_z;
+        normal = QVector3D(x, y, 1.0);
+    };
+
+    qDebug() << "normal is " << normal.x()
+             << " " << normal.y()
+             << " " << normal.z();
+    return normal.normalized();
+}
+
+void SceneRenderer::estimateNormalsForPingBuffer(float planeFitRadius)
+{
+    m_tree.build(*m_vertexBufferPing);
+
+    QVector<int> neighborIndices;
+    QVector<const Vertex*> neighborReferences;
+    for(auto& vertex: *m_vertexBufferPing)
+    {
+        m_tree.pointsInSphere(vertex.position, planeFitRadius, neighborIndices);
+        // create references list
+        neighborReferences.clear();
+        for(int index: neighborIndices)
+        {
+            neighborReferences.append( &m_vertexBufferPing->at(index) );
+        }
+
+        vertex.normal = fittedPlaneNormal(neighborReferences);
+    }
 }

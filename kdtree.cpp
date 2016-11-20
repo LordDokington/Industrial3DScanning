@@ -1,5 +1,6 @@
 #include "kdtree.h"
 #include <QDebug>
+#include <cmath>
 
 void KdTree::build(QVector<Vertex>& vertices)
 {
@@ -112,6 +113,90 @@ void KdTree::rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>
             rangeQuery(min, max, vertexPtrs, node->leftChild, depth+1);
         if(max.z() > node->median)
             rangeQuery(min, max, vertexPtrs, node->rightChild, depth+1);
+    }
+}
+
+Vertex* KdTree::nearestPoint(QVector3D& position)
+{
+    Vertex* approx = nearestPointApprox(position, m_tree, 0);
+    return nearestPoint(position, approx->position, m_tree, 0);
+}
+
+Vertex* KdTree::nearestPoint(const QVector3D& point, QVector3D& approx, KdTreeNode* node, uint depth)
+{
+    if(node == 0) return 0;
+
+    unsigned int numPoints = (node->end - node->begin);
+    unsigned int currentDimension = depth % 3;
+
+    if(numPoints == 0)
+    {
+        return 0;
+    }
+    else if(numPoints == 1)
+    {
+        return node->begin;
+    }
+
+    if(currentDimension == 0)
+    {
+        float pointDist = abs(approx.x() - point.x());
+        float nodeDist = abs(node->median - point.x());
+
+        if(nodeDist < pointDist) approx.setX(node->median);
+
+        if(approx.x() <= node->median)
+        {
+            return node->leftChild ?
+                nearestPoint(point, approx, node->leftChild, depth+1) :
+                nearestPoint(point, approx, node->rightChild, depth+1);
+        }
+        else
+        {
+            return node->rightChild ?
+                nearestPoint(point, approx, node->rightChild, depth+1) :
+                nearestPoint(point, approx, node->leftChild, depth+1);
+        }
+    }
+    else if(currentDimension == 1)
+    {
+        float pointDist = abs(approx.y() - point.y());
+        float nodeDist = abs(node->median - point.y());
+
+        if(nodeDist < pointDist) approx.setY(node->median);
+
+        if(approx.y() <= node->median)
+        {
+            return node->leftChild ?
+                nearestPoint(point, approx, node->leftChild, depth+1) :
+                nearestPoint(point, approx, node->rightChild, depth+1);
+        }
+        else
+        {
+            return node->rightChild ?
+                nearestPoint(point, approx, node->rightChild, depth+1) :
+                nearestPoint(point, approx, node->leftChild, depth+1);
+        }
+    }
+    else
+    {
+        float pointDist = abs(approx.z() - point.z());
+        float nodeDist = abs(node->median - point.z());
+
+        if(nodeDist < pointDist) approx.setZ(node->median);
+
+        if(approx.z() <= node->median)
+        {
+            return node->leftChild ?
+                nearestPoint(point, approx, node->leftChild, depth+1) :
+                nearestPoint(point, approx, node->rightChild, depth+1);
+        }
+        else
+        {
+            return node->rightChild ?
+                nearestPoint(point, approx, node->rightChild, depth+1) :
+                nearestPoint(point, approx, node->leftChild, depth+1);
+        }
     }
 }
 

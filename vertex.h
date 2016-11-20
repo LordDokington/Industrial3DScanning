@@ -26,7 +26,12 @@ struct Vertex {
     Vertex(const QVector3D& position, const QVector3D& color): position(position), color(color)
     {}
 
+    Vertex(const QVector3D& position, const QVector3D& normal, const QVector3D& color):
+        position(position), normal(normal), color(color)
+    {}
+
     QVector3D position;
+    QVector3D normal;
     QVector3D color;
 };
 

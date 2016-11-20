@@ -63,10 +63,12 @@ public:
             glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)0);
             glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)12);
+            glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (char*)24);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
             glEnableVertexAttribArray(0);
             glEnableVertexAttribArray(1);
+            glEnableVertexAttribArray(2);
 
         glBindVertexArray(0);
     }
