@@ -11,6 +11,7 @@ class SceneRendererQMLWrapper : public QQuickItem
     Q_OBJECT
     Q_PROPERTY(QString geometryFilePath READ geometryFilePath WRITE setGeometryFilePath)
     Q_PROPERTY(float zDistance READ zDistance WRITE setZDistance)
+    Q_PROPERTY(float pointSize READ pointSize WRITE setPointSize)
 
     Q_PROPERTY(bool usePerVertexColor READ usePerVertexColor WRITE setUsePerVertexColor)
 
@@ -34,12 +35,23 @@ public:
     const float zDistance()
     {
         if( !m_sceneRenderer ) return 0;
-        return m_sceneRenderer->zDistance();
+        return m_sceneRenderer->mappedZDistance();
     }
     void setZDistance(const float zDistance)
     {
         if( !m_sceneRenderer ) return;
-        m_sceneRenderer->setZDistance(zDistance);
+        m_sceneRenderer->setMappedZDistance(zDistance);
+    }
+
+    const float pointSize()
+    {
+        if( !m_sceneRenderer ) return 0;
+        return m_sceneRenderer->pointSize();
+    }
+    void setPointSize(const float pointSize)
+    {
+        if( !m_sceneRenderer ) return;
+        m_sceneRenderer->setPointSize(pointSize);
     }
 
     const bool usePerVertexColor()
@@ -69,6 +81,18 @@ public:
     {
         if(!m_sceneRenderer) return;
         m_sceneRenderer->undoSmooth();
+    }
+
+    Q_INVOKABLE void estimateNormals(float radius)
+    {
+        if(!m_sceneRenderer) return;
+        m_sceneRenderer->estimateNormalsForCurrentBuffer(radius);
+    }
+
+    Q_INVOKABLE void thinning(float radius)
+    {
+        if(!m_sceneRenderer) return;
+        m_sceneRenderer->thinning(radius);
     }
 
 public slots:

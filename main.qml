@@ -13,16 +13,19 @@ ApplicationWindow {
     title: qsTr("3D Scanning App")
 
     property bool justSmoothed: false
-    property color uiColor: "#44DDDDDD"
+    property color uiColor: "#90DDDDDD"
+
+    property bool redoSmoothingMode: false
 
     SceneRenderer {
         id: sceneRenderer
 
         anchors.fill: parent
 
-        zDistance: 0.4 - zSlider.value
+        zDistance: 1.0 - zSlider.value
 
         usePerVertexColor: useVertexColorButton.checked
+        pointSize: pointSizeSlider.value
     }
 
     MouseArea {
@@ -50,6 +53,8 @@ ApplicationWindow {
     }
 
     Rectangle {
+        id: menuBar
+
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -71,90 +76,224 @@ ApplicationWindow {
     }
 
     Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: 50
+        id: uiBar
 
-        width: 200
-        height: 90
+        anchors.right: parent.right
+        anchors.top: menuBar.bottom
+        anchors.bottom: parent.bottom
+
+        width: 220
 
         color: uiColor
 
         ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
+            anchors.centerIn: parent
 
-            OldControls.ExclusiveGroup { id: vertexColorGroup }
+            spacing: 10
 
-            Text {
-                font.bold: true
-                text: "vertex color"
-            }
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
 
-            OldControls.RadioButton {
-                text: "uniform"
-                exclusiveGroup: vertexColorGroup
-            }
-            OldControls.RadioButton {
-                id: useVertexColorButton
-                text: "KdTree"
-                checked: true
-                exclusiveGroup: vertexColorGroup
-            }
-        }
-    }
+                width: 200
+                height: 90
 
-    Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: 200
+                color: uiColor
 
-        width: 200
-        height: 120
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
 
-        color: uiColor
+                    OldControls.ExclusiveGroup { id: vertexColorGroup }
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
+                    Text {
+                        font.bold: true
+                        text: "vertex color"
+                    }
 
-            Text {
-                font.bold: true
-                text: "smoothing"
-            }
-
-            RowLayout {
-                Text { text: "radius:" }
-
-                TextInput {
-                    id: radiusInput
-                    text: "0.005"
-                    Layout.fillWidth: true
-                }
-            }
-
-            RowLayout {
-                Button {
-                    text: "smooth"
-
-                    Layout.fillWidth: true
-
-                    onClicked: {
-                        sceneRenderer.smoothMesh( parseFloat(radiusInput.text) )
-                        justSmoothed = true
+                    OldControls.RadioButton {
+                        text: "uniform"
+                        exclusiveGroup: vertexColorGroup
+                    }
+                    OldControls.RadioButton {
+                        id: useVertexColorButton
+                        text: "KdTree"
+                        checked: true
+                        exclusiveGroup: vertexColorGroup
                     }
                 }
+            }
 
-                Button {
-                    text: "undo"
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
 
-                    enabled: justSmoothed
+                width: 200
+                height: 120
 
-                    Layout.fillWidth: true
+                color: uiColor
 
-                    onClicked: {
-                        sceneRenderer.undoSmooth()
-                        justSmoothed = false
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "smoothing"
+                    }
+
+                    RowLayout {
+                        Text { text: "radius:" }
+
+                        TextInput {
+                            id: smoothRadiusInput
+                            text: "0.005"
+                            Layout.fillWidth: true
+
+                            onTextChanged: { redoSmoothingMode = false }
+                        }
+                    }
+
+                    RowLayout {
+                        Button {
+                            text: "smooth"
+
+                            Layout.fillWidth: true
+
+                            onClicked: {
+                                if(redoSmoothingMode)
+                                    sceneRenderer.undoSmooth()
+                                else
+                                {
+                                    sceneRenderer.smoothMesh( parseFloat(smoothRadiusInput.text) )
+                                }
+
+                                justSmoothed = true
+                                redoSmoothingMode = false
+                            }
+                        }
+
+                        Button {
+                            text: "undo"
+
+                            enabled: justSmoothed
+
+                            Layout.fillWidth: true
+
+                            onClicked: {
+                                sceneRenderer.undoSmooth()
+                                justSmoothed = false
+                                redoSmoothingMode = true
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
+
+                width: 200
+                height: 120
+
+                color: uiColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "normals"
+                    }
+
+                    RowLayout {
+                        Text { text: "radius:" }
+
+                        TextInput {
+                            id: normalRadiusInput
+                            text: "0.001"
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    RowLayout {
+                        Button {
+                            text: "estimate normals"
+
+                            Layout.fillWidth: true
+
+                            onClicked: {
+                                sceneRenderer.estimateNormals( parseFloat(normalRadiusInput.text) )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
+
+                width: 200
+                height: 120
+
+                color: uiColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "thinning"
+                    }
+
+                    RowLayout {
+                        Text { text: "radius:" }
+
+                        TextInput {
+                            id: thinningRadiusInput
+                            text: "0.001"
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    RowLayout {
+                        Button {
+                            text: "apply"
+
+                            Layout.fillWidth: true
+
+                            onClicked: {
+                                sceneRenderer.thinning( parseFloat(thinningRadiusInput.text) )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
+
+                width: 200
+                height: 120
+
+                color: uiColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "point size"
+                    }
+
+                    OldControls.Slider {
+                        id: pointSizeSlider
+                        Layout.fillWidth: true
+                        value: 2.0
+
+                        minimumValue: 0.5
+                        maximumValue: 20.0
                     }
                 }
             }
@@ -166,16 +305,16 @@ ApplicationWindow {
 
         anchors {
             left: parent.left
-            right: parent.right
+            right: uiBar.left
             bottom: parent.bottom
 
             margins: 10
         }
 
         minimumValue: 0.0
-        maximumValue: 0.3
+        maximumValue: 1.0
 
-        value: 0.1
+        value: 0.7
 
         updateValueWhileDragging: true
     }
@@ -190,6 +329,7 @@ ApplicationWindow {
             console.log( "selected geometry file path:", filePath )
 
             sceneRenderer.geometryFilePath = filePath
+            redoSmoothingMode = false
 
             this.close()
         }

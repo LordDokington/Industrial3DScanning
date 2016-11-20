@@ -11,23 +11,25 @@
 #include "kdtree.h"
 #include "utils.h"
 
+const float SceneRenderer::MIN_DIST = 0.5f;
+const float SceneRenderer::MAX_DIST = 5.0f;
+
 SceneRenderer::SceneRenderer()
 {
     m_vertexBufferPing = new QVector<Vertex>();
     m_vertexBufferPong = new QVector<Vertex>();
 
+    m_zDistance = mapZDistance(0.3f);
+
     VertexFileLoader::cubePointCloudVertices(200, 0.1f, *m_vertexBufferPing);
     generatePointIndices(*m_vertexBufferPing, m_indices);
 
-    estimateNormalsForPingBuffer(0.001f);
-
-
-    createSelectionWithKdTree();
+    createKdTreeColoring();
 
     setupModelView();
 }
 
-void SceneRenderer::createSelectionWithKdTree()
+void SceneRenderer::createKdTreeColoring()
 {
     m_tree.build(*m_vertexBufferPing);
 
@@ -37,15 +39,10 @@ void SceneRenderer::createSelectionWithKdTree()
     QVector3D center(-0.0008, 0.0666, 0.0699);
     QVector3D offset(0.01, 0.01, 0.01);
 
-    m_vertexBufferPing->push_back( center );
-
-    m_targetPointIndices.clear();
-    m_targetPointIndices.push_back(m_vertexBufferPing->length() - 1);
-
-    m_highlightedIndices.clear();
-    //m_tree.pointsInBox(center - offset, center + offset, m_highlightedIndices);
     m_tree.pointsInSphere(center, 0.01, m_highlightedIndices);
-    //qDebug() << "size of highlighted:" << m_highlightedIndices.size();
+    // dont show selected vertices for now
+    m_highlightedIndices.clear();
+    m_targetPointIndices.clear();
 
     int idx = 0;
     for(auto& vertex : *m_vertexBufferPing)
@@ -64,9 +61,7 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
 
     generatePointIndices(*m_vertexBufferPing, m_indices);
 
-    estimateNormalsForPingBuffer(0.001f);
-
-    createSelectionWithKdTree();
+    createKdTreeColoring();
 
     // reset rotation
     m_rotation = QMatrix4x4();
@@ -94,6 +89,13 @@ void SceneRenderer::setupModelView()
     QVector3D cog = centerOfGravity(*m_vertexBufferPing);
     m_modelview.translate(-cog);
 
+    QVector3D min, max;
+    pointCloudBounds(*m_vertexBufferPing, min, max);
+    max -= min;
+    float maxScale = std::max( max.x(), std::max(max.y(), max.z()) );
+
+    //m_modelview.translate(-cog * maxScale);
+
     QMatrix4x4 view;
 
     QVector3D eye(0, 0, m_zDistance);
@@ -102,6 +104,8 @@ void SceneRenderer::setupModelView()
 
     view.lookAt(eye, center, up);
 
+    view.scale(1.0f / maxScale);
+
     m_modelview = view * m_modelview;
 }
 
@@ -109,7 +113,7 @@ void SceneRenderer::setupProjection()
 {
     m_projection = QMatrix4x4();
     float aspect = m_viewportSize.width() / (float) m_viewportSize.height();
-    m_projection.perspective(50, aspect, 0.01f, 2.0f);
+    m_projection.perspective(50, aspect, 0.1f, 10.0f);
 }
 
 void SceneRenderer::paint()
@@ -130,7 +134,7 @@ void SceneRenderer::paint()
     m_program->setUniformValue("modelview", m_modelview);
     m_program->setUniformValue("projection", m_projection);
 
-    glPointSize(2);
+    glPointSize( m_pointSize );
     // this color acts as "switch" to enable vertex coloring
     m_program->setUniformValue("color", m_vertexColor);
     m_defaultVAO.draw(GL_POINTS);
@@ -202,12 +206,17 @@ void SceneRenderer::initShader()
                                        "void main()"
                                        "{"
                                        "    vec3 view = normalize(-ws_position);"
-                                       "    vec3 light = normalize(vec3(1.0, 1.0, 1.0) - ws_position);"
+                                       "    vec3 light = normalize(vec3(3.0, 3.0, 3.0) - ws_position);"
                                        "    float diffuse = max( dot(light, ws_normal), dot(light, -ws_normal));"
 
+                                       "    vec3 halfVec = normalize(light + view);"
+                                       "    float specular = pow( max(dot(halfVec, ws_normal), 0.0), 20 ) * (20.0 + 8.0) / 100.0;"
+
                                        "    vec4 baseColor = (color != vec4(0.0)) ? color : vec4(vertexColor, 1.0);"
-                                       "    gl_FragColor = diffuse * baseColor;"
-                                       "    gl_FragColor.a = 1.0;"
+
+                                       "    gl_FragColor = baseColor;"
+                                       "    if( ws_normal != vec3(0.0) ) gl_FragColor = vec4(vec3(diffuse), 1.0) * baseColor;" //+ vec4(vec3(specular), 0.0);"
+
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
@@ -266,15 +275,10 @@ void SceneRenderer::smoothMesh(const float radius)
     QVector<int> neighbors;
     m_vertexBufferPong->clear();
 
-    int counter = 0;
-
     //#pragma omp parallel for
     for(const auto vertex : *m_vertexBufferPing)
     {
         m_tree.pointsInSphere(vertex.position, radius, neighbors);
-
-        if(counter++ % 100 == 0)
-            qDebug() << neighbors.length() << " indices in neighborhood";
 
         if(neighbors.empty())
         {
@@ -380,13 +384,11 @@ QVector3D SceneRenderer::fittedPlaneNormal(QVector<const Vertex*> vertices)
         normal = QVector3D(x, y, 1.0);
     };
 
-    qDebug() << "normal is " << normal.x()
-             << " " << normal.y()
-             << " " << normal.z();
+    //qDebug() << "normal is " << normal.x() << " " << normal.y() << " " << normal.z();
     return normal.normalized();
 }
 
-void SceneRenderer::estimateNormalsForPingBuffer(float planeFitRadius)
+void SceneRenderer::estimateNormalsForCurrentBuffer(float planeFitRadius)
 {
     m_tree.build(*m_vertexBufferPing);
 
@@ -404,4 +406,45 @@ void SceneRenderer::estimateNormalsForPingBuffer(float planeFitRadius)
 
         vertex.normal = fittedPlaneNormal(neighborReferences);
     }
+
+    m_isGeometryInvalidated = true;
+}
+
+void SceneRenderer::thinning(float radius)
+{
+    qDebug() << "SceneRenderer::thinning()";
+
+    m_tree.build(*m_vertexBufferPing);
+
+    QVector<int> neighborIndices;
+    for(auto& vertex: *m_vertexBufferPing)
+    {
+        if( std::isnan( vertex.color.x() ) ) continue;
+
+        m_tree.pointsInSphere(vertex.position, radius, neighborIndices);
+        qDebug() << "neighbors length: " << neighborIndices.length();
+        for(int index : neighborIndices)
+        {
+            Vertex* vertexToBeRemoved = m_vertexBufferPing->data() + index;
+            // the vertex which neighbors where queried itself should not be removed
+            if(&vertex == vertexToBeRemoved) continue;
+
+            vertexToBeRemoved->color.setX( std::numeric_limits<float>::quiet_NaN() );
+        }
+    }
+
+    qDebug() << "ping Buffer count before: " << m_vertexBufferPing->length();
+
+    m_vertexBufferPong->clear();
+    for(auto& vertex : *m_vertexBufferPing)
+    {
+        if( !std::isnan( vertex.color.x() ) ) m_vertexBufferPong->append(vertex);
+    }
+
+    qDebug() << "pong Buffer count after: " << m_vertexBufferPong->length();
+
+    swapVertexBuffers();
+
+    generatePointIndices(*m_vertexBufferPing, m_indices);
+    m_isGeometryInvalidated = true;
 }

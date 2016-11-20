@@ -84,6 +84,8 @@ public:
 
     void smoothMesh(const float radius);
     void undoSmooth();
+    void estimateNormalsForCurrentBuffer(float planeFitRadius);
+    void thinning(float radius);
 
     void rotate(float x1, float y1, float x2, float y2);
 
@@ -95,14 +97,23 @@ public:
 
     void setWindow(QQuickWindow* window) { m_window = window; }
 
-    const float zDistance()
+    const float mappedZDistance()
     {
         return m_zDistance;
     }
-    void setZDistance(const float zDistance)
+    void setMappedZDistance(const float zDistance)
     {
-        m_zDistance = zDistance;
+        m_zDistance = mapZDistance(zDistance);
         setupModelView();
+    }
+
+    const float pointSize()
+    {
+        return m_pointSize;
+    }
+    void setPointSize(const float pointSize)
+    {
+        m_pointSize = pointSize;
     }
 
     const QVector4D& vertexColor()
@@ -157,7 +168,6 @@ private:
     }
 
     QVector3D fittedPlaneNormal(QVector<const Vertex*> vertices);
-    void estimateNormalsForPingBuffer(float planeFitRadius);
 
     void initVertexData();
     void initShader();
@@ -166,12 +176,23 @@ private:
     void generatePointIndices(const QVector<Vertex>& vertices,
                               QVector<int>& indices);
 
-    void createSelectionWithKdTree();
+    float mapZDistance(float t)
+    {
+        t = std::max(0.0f, std::min(1.0f, t));
+        return (1-t) * MIN_DIST + t * MAX_DIST;
+    }
+
+    static const float MIN_DIST;
+    static const float MAX_DIST;
+
+    void createKdTreeColoring();
 
     void setupModelView();
     void setupProjection();
 
-    float m_zDistance = 0.3f;
+    float m_zDistance = 0.0;
+
+    float m_pointSize = 2.0f;
 };
 
 #endif // SCENERENDERER_H
