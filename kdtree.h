@@ -28,7 +28,7 @@ public:
     void pointsInBox(const QVector3D& min, const QVector3D& max, QVector<int>& indices);
     void pointsInSphere(const QVector3D& center, const float distance, QVector<int>& indices);
 
-    Vertex* nearestPoint(QVector3D& position);
+    Vertex* nearestPoint(QVector3D& point);
 
 private:
     struct KdTreeNode
@@ -53,7 +53,8 @@ private:
 
     // FIXME: finish implementation
     Vertex* nearestPointApprox(const QVector3D& point, KdTreeNode* node, uint depth);
-    Vertex* nearestPoint(const QVector3D& point, QVector3D& approx,  KdTreeNode* node, uint depth);
+    //Vertex* nearestPoint(const QVector3D& point, QVector3D& approx,  KdTreeNode* node, uint depth);
+    void nearestPoint(const QVector3D& point, KdTreeNode* node, double& dist, Vertex *np, int depth);
 
     KdTreeNode* m_tree = 0;
     Vertex* m_vertexArrayPointer = 0;
