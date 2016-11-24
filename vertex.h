@@ -4,10 +4,12 @@
 #include <QVector3D>
 
 struct Vertex {
-    operator QVector3D&()
+    /*
+	operator QVector3D&()
     {
         return position;
     }
+	*/
 
     Vertex()
     {
@@ -29,6 +31,18 @@ struct Vertex {
     Vertex(const QVector3D& position, const QVector3D& normal, const QVector3D& color):
         position(position), normal(normal), color(color)
     {}
+
+    operator QVector3D&() { return position; }
+
+    // NaN in color Z component is used as flag for a generic markings of a vertex
+    void flag()
+    {
+        color.setZ( std::numeric_limits<float>::quiet_NaN() );
+    }
+    bool isFlagged()
+    {
+        return std::isnan( color.z() );
+    }
 
     QVector3D position;
     QVector3D normal;

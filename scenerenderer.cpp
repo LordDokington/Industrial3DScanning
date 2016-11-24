@@ -24,25 +24,17 @@ SceneRenderer::SceneRenderer()
     VertexFileLoader::cubePointCloudVertices(200, 0.1f, *m_vertexBufferPing);
     generatePointIndices(*m_vertexBufferPing, m_indices);
 
-    createKdTreeColoring();
+    setupKdTree();
 
     setupModelView();
 }
 
-void SceneRenderer::createKdTreeColoring()
+void SceneRenderer::setupKdTree()
 {
     m_tree.build(*m_vertexBufferPing);
 
     QVector3D min, max;
     pointCloudBounds(*m_vertexBufferPing, min, max);
-
-    QVector3D center(-0.0008, 0.0666, 0.0699);
-    QVector3D offset(0.01, 0.01, 0.01);
-
-    m_tree.pointsInSphere(center, 0.01, m_highlightedIndices);
-    // dont show selected vertices for now
-    m_highlightedIndices.clear();
-    m_targetPointIndices.clear();
 
     int idx = 0;
     for(auto& vertex : *m_vertexBufferPing)
@@ -61,7 +53,7 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
 
     generatePointIndices(*m_vertexBufferPing, m_indices);
 
-    createKdTreeColoring();
+    setupKdTree();
 
     // reset rotation
     m_rotation = QMatrix4x4();
@@ -84,28 +76,22 @@ void SceneRenderer::generatePointIndices(const QVector<Vertex>& vertices,
 
 void SceneRenderer::setupModelView()
 {
-    m_modelview = m_rotation;
-
     QVector3D cog = centerOfGravity(*m_vertexBufferPing);
-    m_modelview.translate(-cog);
-
     QVector3D min, max;
     pointCloudBounds(*m_vertexBufferPing, min, max);
     max -= min;
     float maxScale = std::max( max.x(), std::max(max.y(), max.z()) );
 
-    //m_modelview.translate(-cog * maxScale);
-
     QMatrix4x4 view;
-
     QVector3D eye(0, 0, m_zDistance);
     QVector3D center(0, 0, 0);
     QVector3D up(0, 1.f, 0);
 
     view.lookAt(eye, center, up);
-
     view.scale(1.0f / maxScale);
 
+    m_modelview = m_rotation;
+    m_modelview.translate(-cog);
     m_modelview = view * m_modelview;
 }
 
@@ -165,6 +151,10 @@ void SceneRenderer::init()
         // essentially makes use of GLUT headers obsolete
         initializeOpenGLFunctions();
         initShader();
+
+        // TODO: investigate point rendering types
+        //glEnable(GL_PROGRAM_POINT_SIZE);
+        //glEnable(GL_POINT_SMOOTH);
 
         m_isGeometryInvalidated = true;
     }
@@ -270,7 +260,7 @@ void SceneRenderer::smoothMesh(const float radius)
     // selection highlight will become incorrect, remove it
     m_highlightedIndices.clear();
 
-    m_tree.build(*m_vertexBufferPing);
+    setupKdTree();
 
     QVector<int> neighbors;
     m_vertexBufferPong->clear();
@@ -316,81 +306,11 @@ void SceneRenderer::undoSmooth()
     m_isGeometryInvalidated = true;
 }
 
-QVector3D SceneRenderer::fittedPlaneNormal(QVector<const Vertex*> vertices)
+void SceneRenderer::estimateNormals(float planeFitRadius)
 {
-    int numPoints = vertices.length();
+    qDebug() << "SceneRenderer::thinning()";
 
-    if(numPoints < 3)
-    {
-        qWarning() << "At least three points are needed to fit plane";
-        return QVector3D();
-    }
-
-    // center of gravity
-    QVector3D cog;
-    for(auto vertex : vertices) cog += vertex->position;
-    cog /= numPoints;
-
-    // calc full 3x3 covariance matrix, excluding symmetries:
-    double xx = 0.0;
-    double xy = 0.0;
-    double xz = 0.0;
-    double yy = 0.0;
-    double yz = 0.0;
-    double zz = 0.0;
-
-    for(auto vertex : vertices)
-    {
-        QVector3D r = vertex->position - cog;
-        xx += r.x() * r.x();
-        xy += r.x() * r.y();
-        xz += r.x() * r.z();
-        yy += r.y() * r.y();
-        yz += r.y() * r.z();
-        zz += r.z() * r.z();
-    }
-
-    // determinants from cramers rule
-    double det_x = yy*zz - yz*yz;
-    double det_y = xx*zz - xz*xz;
-    double det_z = xx*yy - xy*xy;
-
-    double det_max = std::max( det_x, std::max(det_y, det_z) );
-    if(det_max <= 0.0)
-    {
-        qWarning() << "the points do not span a plane (are collinear)";
-        return QVector3D();
-    }
-
-    QVector3D normal;
-
-    // pick largest determinant
-    if(det_max == det_x)
-    {
-        double y = (xz*yz - xy*zz) / det_x;
-        double z = (xy*yz - xz*yy) / det_x;
-        normal = QVector3D(1.0, y, z);
-    }
-    else if(det_max == det_y)
-    {
-        double x = (yz*xz - xy*zz) / det_y;
-        double z = (xy*xz - yz*xx) / det_y;
-        normal = QVector3D(x, 1.0, z);
-    }
-    else
-    {
-        double x = (yz*xy - xz*yy) / det_z;
-        double y = (xz*xy - yz*xx) / det_z;
-        normal = QVector3D(x, y, 1.0);
-    };
-
-    //qDebug() << "normal is " << normal.x() << " " << normal.y() << " " << normal.z();
-    return normal.normalized();
-}
-
-void SceneRenderer::estimateNormalsForCurrentBuffer(float planeFitRadius)
-{
-    m_tree.build(*m_vertexBufferPing);
+    setupKdTree();
 
     QVector<int> neighborIndices;
     QVector<const Vertex*> neighborReferences;
@@ -414,34 +334,31 @@ void SceneRenderer::thinning(float radius)
 {
     qDebug() << "SceneRenderer::thinning()";
 
-    m_tree.build(*m_vertexBufferPing);
+    setupKdTree();
 
     QVector<int> neighborIndices;
     for(auto& vertex: *m_vertexBufferPing)
     {
-        if( std::isnan( vertex.color.x() ) ) continue;
+        // vertices that are already flagged can be skipped
+        if( vertex.isFlagged() ) continue;
 
+        // query neighborhood of vertex
         m_tree.pointsInSphere(vertex.position, radius, neighborIndices);
-        qDebug() << "neighbors length: " << neighborIndices.length();
+
+        // flag all neighbors to remove (or rather not copy) them later
         for(int index : neighborIndices)
         {
             Vertex* vertexToBeRemoved = m_vertexBufferPing->data() + index;
-            // the vertex which neighbors where queried itself should not be removed
-            if(&vertex == vertexToBeRemoved) continue;
-
-            vertexToBeRemoved->color.setX( std::numeric_limits<float>::quiet_NaN() );
+            // the query vertex itself should not be removed
+            if(&vertex != vertexToBeRemoved) vertexToBeRemoved->flag();
         }
     }
-
-    qDebug() << "ping Buffer count before: " << m_vertexBufferPing->length();
 
     m_vertexBufferPong->clear();
     for(auto& vertex : *m_vertexBufferPing)
     {
-        if( !std::isnan( vertex.color.x() ) ) m_vertexBufferPong->append(vertex);
+        if( !vertex.isFlagged() ) m_vertexBufferPong->append(vertex);
     }
-
-    qDebug() << "pong Buffer count after: " << m_vertexBufferPong->length();
 
     swapVertexBuffers();
 

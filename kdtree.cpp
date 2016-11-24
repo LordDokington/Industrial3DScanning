@@ -40,7 +40,7 @@ void KdTree::pointsInSphere(const QVector3D& center, const float distance, QVect
     }
 }
 
-KdTree::KdTreeNode* KdTree::buildKdTree(Vertex* begin, Vertex* end, uint depth)
+KdTree::KdTreeNode* KdTree::buildKdTree(Vertex* begin, Vertex* end, const uint depth)
 {
     unsigned int currentDimension = depth % 3;
     unsigned int numPoints = (end - begin);

@@ -274,7 +274,7 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
 
                 width: 200
-                height: 120
+                height: 60
 
                 color: uiColor
 

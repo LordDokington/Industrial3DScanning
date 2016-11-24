@@ -86,7 +86,7 @@ public:
     Q_INVOKABLE void estimateNormals(float radius)
     {
         if(!m_sceneRenderer) return;
-        m_sceneRenderer->estimateNormalsForCurrentBuffer(radius);
+        m_sceneRenderer->estimateNormals(radius);
     }
 
     Q_INVOKABLE void thinning(float radius)

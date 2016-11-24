@@ -49,7 +49,7 @@ private:
     };
 
     KdTreeNode* buildKdTree(Vertex* begin, Vertex* end, unsigned int depth);
-    void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& indices, KdTreeNode* node, uint depth);
+    void rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>& indices, KdTreeNode* node, const uint depth);
 
     // FIXME: finish implementation
     Vertex* nearestPointApprox(const QVector3D& point, KdTreeNode* node, uint depth);
