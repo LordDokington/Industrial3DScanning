@@ -6,6 +6,10 @@
 
 #include "scenerenderer.h"
 
+/*!
+ * \brief The SceneRendererQMLWrapper class
+ * \details connects SceneRenderer and main.qml
+ */
 class SceneRendererQMLWrapper : public QQuickItem
 {
     Q_OBJECT

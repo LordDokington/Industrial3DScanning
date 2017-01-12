@@ -17,6 +17,10 @@
 #include "vertex.h"
 #include "utils.h"
 
+/*!
+ * \brief The SceneRenderer class
+ * \details manages and renders the point cloud and provides th
+ */
 class SceneRenderer : public QObject,
                       protected QOpenGLFunctions_4_3_Core
 {
@@ -25,7 +29,7 @@ class SceneRenderer : public QObject,
 public:
     inline float sqr(float x) { return x*x; }
 
-    SceneRenderer();
+    SceneRenderer(); //!< constructor - sets up vertex buffers and kdTree
 
     ~SceneRenderer()
     {
@@ -34,6 +38,11 @@ public:
         delete m_program;
     }
 
+    /*!
+     * \brief centerOfGravity
+     * \param vertices a list of points
+     * \return average position of all points
+     */
     QVector3D centerOfGravity(QVector<Vertex>& vertices)
     {
         QVector3D cog;
@@ -64,6 +73,13 @@ public:
         else if(hi==5) return QVector3D(V,p,q);
         else           return QVector3D(V,t,p); }
 
+    /*!
+     * \brief determine point cloud boundaries
+     * \details determines the bounding box defined by two 3D points (min, max)
+     * \param vertices point cloud
+     * \param min minimum XYZ coordinates
+     * \param max maximum XYZ coordinates
+     */
     void pointCloudBounds(QVector<Vertex>& vertices, QVector3D& min, QVector3D& max)
     {
         if(vertices.empty()) return;
@@ -82,108 +98,150 @@ public:
         }
     }
 
+    /*!
+     * \brief smooth mesh
+     * \details applies a simple smoothing filter with a given radius
+     * \param radius
+     */
     void smoothMesh(const float radius);
+
+    /*!
+     * \brief undo smoothing
+     * \details swaps ping and pong buffers for easy reversion of the smoothing operation
+     */
     void undoSmooth();
+
+    /*!
+     * \brief estimate normals
+     * \details estimates normals for all points by fitting a plane through all neighbors in a given radius
+     * \param planeFitRadius
+     */
     void estimateNormalsForCurrentBuffer(float planeFitRadius);
+
+    /*!
+     * \brief thinning
+     * \details applies a thinning filter with a given radius - for all points, find neighbors within radius and remove them
+     * \param radius
+     */
     void thinning(float radius);
 
+    /*!
+     * \brief rotate
+     * \details 3D rotation using a virtual rotation ball - dragging the mouse outside the ball rotates around view direction vector
+     * \param x1 last known cursor X coordinate
+     * \param y1 last known cursor Y coordinate
+     * \param x2 current cursor X coordinate
+     * \param y2 current cursor Y coordinate
+     */
     void rotate(float x1, float y1, float x2, float y2);
 
-    void setViewportSize(const QSize& viewportSize)
+    void setViewportSize(const QSize& viewportSize) //!< viewport setter
     {
         m_viewportSize = viewportSize;
         setupProjection();
     }
 
-    void setWindow(QQuickWindow* window) { m_window = window; }
+    void setWindow(QQuickWindow* window) { m_window = window; } //!< window setter
 
-    const float mappedZDistance()
+    const float mappedZDistance() //!< Z distance getter
     {
         return m_zDistance;
     }
-    void setMappedZDistance(const float zDistance)
+    void setMappedZDistance(const float zDistance) //!< Z distance setter - also updates ModelView
     {
         m_zDistance = mapZDistance(zDistance);
         setupModelView();
     }
 
-    const float pointSize()
+    const float pointSize() //!< point size getter
     {
         return m_pointSize;
     }
-    void setPointSize(const float pointSize)
+    void setPointSize(const float pointSize) //!< point size setter
     {
         m_pointSize = pointSize;
     }
 
-    const QVector4D& vertexColor()
+    const QVector4D& vertexColor() //!< point color getter
     {
         return m_vertexColor;
     }
-    void setVertexColor(const QVector4D& vertexColor)
+    void setVertexColor(const QVector4D& vertexColor) //!< point color setter
     {
         m_vertexColor = vertexColor;
     }
 
-    void setGeometryFilePath(const QString& geometryFilePath);
-    QString& geometryFilePath() { return m_geometryFilePath; }
+    void setGeometryFilePath(const QString& geometryFilePath); //!< set new file path, load point cloud file and setup geometry structures
+    QString& geometryFilePath() { return m_geometryFilePath; } //!< file path getter
 public slots:
     // plain old OpenGL paint function
-    void paint();
-    void init();
+    void paint(); //!< plain old OpenGL paint function
+    void init(); //!< initializes OpenGL and shaders
 
 private:
-    QSize m_viewportSize;
-    QString m_geometryFilePath;
-    QQuickWindow* m_window = 0;
+    QSize m_viewportSize; //!< viewport size
+    QString m_geometryFilePath; //!< path for point cloud file
+    QQuickWindow* m_window = 0; //!< application window
 
-    QVector<Vertex>* m_vertexBufferPing = 0;
-    QVector<Vertex>* m_vertexBufferPong = 0;
+    QVector<Vertex>* m_vertexBufferPing = 0; //!< vertex buffers
+    QVector<Vertex>* m_vertexBufferPong = 0; //!< vertex buffers
 
-    QVector<int> m_indices;
-    QVector<int> m_highlightedIndices;
-    QVector<int> m_targetPointIndices;
+    QVector<int> m_indices;             //!< point indices
+    QVector<int> m_highlightedIndices;  //!< indices of highlighted points
+    QVector<int> m_targetPointIndices;  //!< indices of targeted points
 
-    QMatrix4x4 m_rotation;
-    QMatrix4x4 m_modelview;
-    QMatrix4x4 m_projection;
+    QMatrix4x4 m_rotation;  //!< rotation matrix
+    QMatrix4x4 m_modelview; //!< modelview matrix
+    QMatrix4x4 m_projection;//!< projection matrix
 
-    QOpenGLShaderProgram* m_program = 0;
+    QOpenGLShaderProgram* m_program = 0; //!< shader program
 
-    VertexArrayObject m_defaultVAO;
-    VertexArrayObject m_highlightedVAO;
-    VertexArrayObject m_targetPointVAO;
+    VertexArrayObject m_defaultVAO;     //!< point cloud vertex array object
+    VertexArrayObject m_highlightedVAO; //!< VAO for highlighted points
+    VertexArrayObject m_targetPointVAO; //!< VAO for targeted points
 
-    QVector4D m_vertexColor;
+    QVector4D m_vertexColor; //!< point color
 
-    KdTree m_tree;
+    KdTree m_tree; //!< kdTree
 
-    bool m_isGeometryInvalidated = false;
+    bool m_isGeometryInvalidated = false; //!< switch for invalidation of vertex buffers
 
-    void swapVertexBuffers()
+    void swapVertexBuffers() //!< swaps ping pong buffers to revert filter operations
     {
         QVector<Vertex>* swap = m_vertexBufferPing;
         m_vertexBufferPing = m_vertexBufferPong;
         m_vertexBufferPong = swap;
     }
 
+    /*!
+     * \brief fittedPlaneNormal
+     * \details fit a plane through given points to determine normal vector
+     * \param vertices list of points
+     * \return 3D normal vector
+     */
     QVector3D fittedPlaneNormal(QVector<const Vertex*> vertices);
 
-    void initVertexData();
-    void initShader();
+    void initVertexData(); //!< initialize VAOs
+    void initShader(); //!< initialize vertex and fragment shaders
 
-    void drawGeometry();
+    //void drawGeometry();
     void generatePointIndices(const QVector<Vertex>& vertices,
                               QVector<int>& indices);
 
+    /*!
+     * \brief mapZDistance
+     * \details interpolate new Z distance between MIN_DIST and MAX_DIST with factor t
+     * \param t interpolation factor
+     * \return new distance
+     */
     float mapZDistance(float t)
     {
         t = std::max(0.0f, std::min(1.0f, t));
         return (1-t) * MIN_DIST + t * MAX_DIST;
     }
 
-    static const float MIN_DIST;
-    static const float MAX_DIST;
+    static const float MIN_DIST; //!< minimum camera distance
+    static const float MAX_DIST; //!< maximum camera distance
 
     void createKdTreeColoring();
 
