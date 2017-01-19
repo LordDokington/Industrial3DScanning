@@ -95,6 +95,13 @@ public:
         m_sceneRenderer->thinning(radius);
     }
 
+    Q_INVOKABLE void fitPlane()
+    {
+        if(!m_sceneRenderer) return;
+        m_sceneRenderer->fitPlane();
+    }
+
+
 public slots:
     void handleWindowChanged(QQuickWindow *window)
     {

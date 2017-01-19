@@ -38,6 +38,8 @@ public:
     void estimateNormals(float planeFitRadius);
     void thinning(float radius);
 
+    void fitPlane();
+
     void rotate(float x1, float y1, float x2, float y2);
 
     void setViewportSize(const QSize& viewportSize)
@@ -91,6 +93,8 @@ private:
     QVector<Vertex>* m_vertexBufferPing = 0;
     QVector<Vertex>* m_vertexBufferPong = 0;
 
+    QVector<Vertex> m_planeVertexBuffer;
+
     QVector<int> m_indices;
     QVector<int> m_highlightedIndices;
     QVector<int> m_targetPointIndices;
@@ -104,6 +108,8 @@ private:
     VertexArrayObject m_defaultVAO;
     VertexArrayObject m_highlightedVAO;
     VertexArrayObject m_targetPointVAO;
+
+    VertexArrayObject m_planeVAO;
 
     QVector4D m_vertexColor;
 

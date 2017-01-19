@@ -274,6 +274,32 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
 
                 width: 200
+                height: 120
+
+                color: uiColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "plane fitting"
+                    }
+
+                    Button {
+                        text: "fit plane"
+
+                        Layout.fillWidth: true
+                        onClicked: sceneRenderer.fitPlane()
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
+
+                width: 200
                 height: 60
 
                 color: uiColor

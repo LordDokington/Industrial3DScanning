@@ -2,15 +2,22 @@
 #define I3DSCANNING_UTILS_H
 
 #include <QVector>
+#include <iostream>
 #include "vertex.h"
+#include "SVD.h"
 
-QVector3D centerOfGravity(QVector<Vertex>& vertices)
+QVector3D centerOfGravity(const QVector<Vertex>& vertices)
 {
     QVector3D cog;
     for(auto vertex : vertices) cog += vertex.position;
     cog /= vertices.size();
 
     return cog;
+}
+
+Matrix inverse3x3(Matrix& in)
+{
+    return in;
 }
 
 void pointCloudBounds(QVector<Vertex>& vertices, QVector3D& min, QVector3D& max)
@@ -53,7 +60,7 @@ QVector3D colorFromGradientHSV(double index)
     else           return QVector3D(V,t,p);
 }
 
-QVector3D fittedPlaneNormal(QVector<const Vertex*> vertices)
+QVector3D fittedPlaneNormal(const QVector<const Vertex*> vertices)
 {
     int numPoints = vertices.length();
 
@@ -123,6 +130,111 @@ QVector3D fittedPlaneNormal(QVector<const Vertex*> vertices)
 
     //qDebug() << "normal is " << normal.x() << " " << normal.y() << " " << normal.z();
     return normal.normalized();
+}
+
+void computeCovarianceMatrix3x3(const QVector<Vertex>& vertices, Matrix& M)
+{
+  M.resize(3, 3);
+  const ptrdiff_t N(vertices.size());
+  if (N<1) return;
+
+  //compute the mean value (center) of the points cloud
+  QVector3D mean = centerOfGravity(vertices);
+
+  //Compute the entries of the (symmetric) covariance matrix
+  double Mxx(0), Mxy(0), Mxz(0), Myy(0), Myz(0), Mzz(0);
+  //#pragma omp parallel for reduction(+: Mxx,Mxy,Mxz,Myy,Myz,Mzz) //omp reduction enables parallel sum up of values
+  for (ptrdiff_t i = 0; i<N; ++i)
+  {
+    const QVector3D& pt = vertices[i].position;
+
+    //generate mean-free coorinates
+    const double x1(pt.x() - mean.x());
+    const double y1(pt.y() - mean.y());
+    const double z1(pt.z() - mean.z());
+
+    //Sum up the entries for the covariance matrix
+    Mxx += x1*x1; Mxy += x1*y1; Mxz += x1*z1;
+    Myy += y1*y1; Myz += y1*z1;
+    Mzz += z1*z1;
+  }
+
+  //setting the sums to the matrix (division by N just for numerical reason if we have very large sums)
+  M(0, 0) = Mxx / N; M(0, 1) = Mxy / N; M(0, 2) = Mxz / N;
+  M(1, 0) = M(0, 1); M(1, 1) = Myy / N; M(1, 2) = Myz / N;
+  M(2, 0) = M(0, 2); M(2, 1) = M(1, 2); M(2, 2) = Mzz / N;
+}
+
+double distancePt2Plane(const QVector3D& point, const QVector3D& pointOnPlane, const QVector3D& planeDirection)
+{
+  const QVector3D PQ = point - pointOnPlane;
+  float distance = QVector3D::dotProduct(PQ, planeDirection);
+  return distance;
+}
+
+/** @brief computes best-fit approximations.
+    @param points vector of points
+*/
+void computeBestFitPlane(QVector<Vertex>& vertices, QVector<QVector3D>& corners, bool colorCodeDistance = false)
+{
+  Matrix M(3, 3);
+
+  const QVector3D center = centerOfGravity(vertices);
+  computeCovarianceMatrix3x3(vertices, M);
+  SVD::computeSymmetricEigenvectors(M);
+
+  const QVector3D ev0(M(0, 0), M(1, 0), M(2, 0)); //first column of M == Eigenvector corresponding to the largest Eigenvalue == direction of biggest variance
+  const QVector3D ev1(M(0, 1), M(1, 1), M(2, 1));
+  const QVector3D ev2(M(0, 2), M(1, 2), M(2, 2)); //third column of M == Eigenvector corresponding to the smallest Eigenvalue == direction of lowest variance
+
+  //best-fit plane
+  std::cout << "*** Best-fit plane ***\n";
+  std::cout << "Point    : " << center.x() << ", " << center.y() << ", " << center.z() << std::endl;
+  std::cout << "Direction: " << ev2.x() << ", " << ev2.y() << ", " << ev2.z() << std::endl;
+
+  if( colorCodeDistance )
+  {
+      for(auto& vertex : vertices)
+      {
+          float dist = distancePt2Plane(vertex.position, center, ev2);
+          vertex.color = colorFromGradientHSV(dist * 15);
+      }
+  }
+
+  //computing the mean distance to plane
+  double meanDistance = 0;
+  for (size_t i = 0; i < vertices.size(); ++i)
+  {
+    meanDistance += std::abs(distancePt2Plane(vertices[i].position, center, ev2));
+  }
+  meanDistance /= vertices.size();
+  std::cout << "mean distance to plane: " << meanDistance << std::endl;
+
+
+  double mindist0 = +std::numeric_limits<double>::max();
+  double maxdist0 = -std::numeric_limits<double>::max();
+  double mindist1 = +std::numeric_limits<double>::max();
+  double maxdist1 = -std::numeric_limits<double>::max();
+  for (size_t i = 0; i < vertices.size(); ++i)
+  {
+    const double dist0 = distancePt2Plane(vertices[i].position, center, ev0);
+    if (dist0 < mindist0) mindist0 = dist0;
+    if (dist0 > maxdist0) maxdist0 = dist0;
+
+    const double dist1 = distancePt2Plane(vertices[i].position, center, ev1);
+    if (dist1 < mindist1) mindist1 = dist1;
+    if (dist1 > maxdist1) maxdist1 = dist1;
+  }
+
+  QVector3D corner1 = center + ev0*maxdist0 + ev1*maxdist1;
+  QVector3D corner2 = center + ev0*maxdist0 + ev1*mindist1;
+  QVector3D corner3 = center + ev0*mindist0 + ev1*mindist1;
+  QVector3D corner4 = center + ev0*mindist0 + ev1*maxdist1;
+
+  corners.push_back(corner1);
+  corners.push_back(corner2);
+  corners.push_back(corner3);
+  corners.push_back(corner4);
 }
 
 #endif // I3DSCANNING_UTILS_H

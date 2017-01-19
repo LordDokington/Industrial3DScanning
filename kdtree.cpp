@@ -118,10 +118,9 @@ void KdTree::rangeQuery(const QVector3D& min, const QVector3D& max, QVector<int>
 
 Vertex* KdTree::nearestPoint(QVector3D& point)
 {
-//    Vertex* approx = nearestPointApprox(position, m_tree, 0);
-//    return nearestPoint(position, approx->position, m_tree, 0);
     Vertex* nearest;
-    double dist = 9999999.0;
+    Vertex* nearestPApprox = nearestPointApprox(point, m_tree, 0);
+    double dist = nearestPApprox->position.distanceToPoint(point);//9999999.0;
     nearestPoint(point, m_tree, dist, nearest, 0);
     return nearest;
 }
@@ -131,7 +130,7 @@ void KdTree::nearestPoint(const QVector3D& point, KdTreeNode* node, double& dist
     if (node->leftChild == node->rightChild) {
         Vertex* p = node->begin;
         double distance = point.distanceToPoint(p->position);
-        if (distance >= dist)
+        if (distance > dist)
             return;
         np = p;
         dist = distance;

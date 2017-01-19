@@ -3,7 +3,8 @@ CONFIG += c++14
 
 SOURCES += main.cpp \
     scenerenderer.cpp \
-    kdtree.cpp
+    kdtree.cpp \
+    SVD.cpp
 
 RESOURCES += qml.qrc
 
@@ -35,4 +36,6 @@ HEADERS += \
     scenerendererqmlwrapper.h \
     kdtree.h \
     vertexarrayobject.h \
-    vertex.h
+    vertex.h \
+    Matrix.h \
+    SVD.h

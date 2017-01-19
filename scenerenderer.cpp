@@ -59,6 +59,8 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
     m_rotation = QMatrix4x4();
     setupModelView();
 
+    m_planeVertexBuffer.clear();
+
     // geometry changed, hence make paint function recreate VAO
     m_isGeometryInvalidated = true;
 
@@ -133,6 +135,10 @@ void SceneRenderer::paint()
     m_program->setUniformValue("color", QVector4D(1, 0, 0, 1));
     m_targetPointVAO.draw(GL_POINTS);
 
+    glPointSize(1);
+    m_program->setUniformValue("color", QVector4D(1, 1, 0, 0.0f));
+    m_planeVAO.draw(GL_QUADS);
+
     // flush and swap buffers
     glFlush();
 
@@ -150,6 +156,11 @@ void SceneRenderer::init()
         // needed before Qt OpenGL wrapper functions can be called
         // essentially makes use of GLUT headers obsolete
         initializeOpenGLFunctions();
+
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
         initShader();
 
         // TODO: investigate point rendering types
@@ -197,7 +208,7 @@ void SceneRenderer::initShader()
                                        "{"
                                        "    vec3 view = normalize(-ws_position);"
                                        "    vec3 light = normalize(vec3(3.0, 3.0, 3.0) - ws_position);"
-                                       "    float diffuse = max( dot(light, ws_normal), dot(light, -ws_normal));"
+                                       "    float diffuse = abs( dot(light, ws_normal) );"
 
                                        "    vec3 halfVec = normalize(light + view);"
                                        "    float specular = pow( max(dot(halfVec, ws_normal), 0.0), 20 ) * (20.0 + 8.0) / 100.0;"
@@ -206,7 +217,7 @@ void SceneRenderer::initShader()
 
                                        "    gl_FragColor = baseColor;"
                                        "    if( ws_normal != vec3(0.0) ) gl_FragColor = vec4(vec3(diffuse), 1.0) * baseColor;" //+ vec4(vec3(specular), 0.0);"
-
+                                       "    if(color.a != 0.0) gl_FragColor.a = color.a;"
                                        "}");
 
     m_program->bindAttributeLocation("position", 0);
@@ -220,6 +231,10 @@ void SceneRenderer::initVertexData()
     m_defaultVAO.init(*m_vertexBufferPing, m_indices);
     m_highlightedVAO.init(*m_vertexBufferPing, m_highlightedIndices);
     m_targetPointVAO.init(*m_vertexBufferPing, m_targetPointIndices);
+
+    QVector<int> planeIndices;
+    generatePointIndices(m_planeVertexBuffer, planeIndices);
+    m_planeVAO.init(m_planeVertexBuffer, planeIndices);
 }
 
 void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float currposY)
@@ -363,5 +378,19 @@ void SceneRenderer::thinning(float radius)
     swapVertexBuffers();
 
     generatePointIndices(*m_vertexBufferPing, m_indices);
+    m_isGeometryInvalidated = true;
+}
+
+void SceneRenderer::fitPlane()
+{
+    QVector<QVector3D> planePoints;
+    computeBestFitPlane(*m_vertexBufferPing, planePoints, true);
+
+    m_planeVertexBuffer.clear();
+    for(auto point : planePoints)
+    {
+        m_planeVertexBuffer.append( Vertex(point));
+    }
+
     m_isGeometryInvalidated = true;
 }
