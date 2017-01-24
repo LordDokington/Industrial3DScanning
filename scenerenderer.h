@@ -16,6 +16,12 @@
 #include "vertexarrayobject.h"
 #include "vertex.h"
 
+#include "tetrahedronsphere.h"
+
+/*!
+ * \brief The SceneRenderer class
+ * \details manages and renders the point cloud and provides th
+ */
 class SceneRenderer : public QObject,
                       protected QOpenGLFunctions_4_3_Core
 {
@@ -31,15 +37,46 @@ public:
         delete m_vertexBufferPing;
         delete m_vertexBufferPong;
         delete m_program;
+        delete m_sphere;
     }
 
+    /*!
+     * \brief smooth mesh
+     * \details applies a simple smoothing filter with a given radius
+     * \param radius
+     */
     void smoothMesh(const float radius);
+
+    /*!
+     * \brief undo smoothing
+     * \details swaps ping and pong buffers for easy reversion of the smoothing operation
+     */
     void undoSmooth();
+
+    /*!
+     * \brief estimate normals
+     * \details estimates normals for all points by fitting a plane through all neighbors in a given radius
+     * \param planeFitRadius
+     */
     void estimateNormals(float planeFitRadius);
+
+    /*!
+     * \brief thinning
+     * \details applies a thinning filter with a given radius - for all points, find neighbors within radius and remove them
+     * \param radius
+     */
     void thinning(float radius);
 
     void fitPlane();
 
+    /*!
+     * \brief rotate
+     * \details 3D rotation using a virtual rotation ball - dragging the mouse outside the ball rotates around view direction vector
+     * \param x1 last known cursor X coordinate
+     * \param y1 last known cursor Y coordinate
+     * \param x2 current cursor X coordinate
+     * \param y2 current cursor Y coordinate
+     */
     void rotate(float x1, float y1, float x2, float y2);
 
     void setViewportSize(const QSize& viewportSize)
@@ -58,6 +95,24 @@ public:
     {
         m_zDistance = mapZDistance(zDistance);
         setupModelView();
+    }
+
+    const bool useSpecular()
+    {
+        return m_useSpecular;
+    }
+    void setUseSpecular(const bool specular)
+    {
+        m_useSpecular = specular;
+    }
+
+    const bool useDiffuse()
+    {
+        return m_useSpecular;
+    }
+    void setUseDiffuse(const bool diffuse)
+    {
+        m_useDiffuse = diffuse;
     }
 
     const float pointSize()
@@ -104,12 +159,14 @@ private:
     QMatrix4x4 m_projection;
 
     QOpenGLShaderProgram* m_program = 0;
+    TetrahedronSphere* m_sphere;
 
     VertexArrayObject m_defaultVAO;
     VertexArrayObject m_highlightedVAO;
     VertexArrayObject m_targetPointVAO;
 
     VertexArrayObject m_planeVAO;
+    VertexArrayObject m_sphereVAO;
 
     QVector4D m_vertexColor;
 
@@ -128,9 +185,13 @@ private:
     void initShader();
 
     void drawGeometry();
-    void generatePointIndices(const QVector<Vertex>& vertices,
-                              QVector<int>& indices);
 
+    /*!
+     * \brief mapZDistance
+     * \details interpolate new Z distance between MIN_DIST and MAX_DIST with factor t
+     * \param t interpolation factor
+     * \return new distance
+     */
     float mapZDistance(float t)
     {
         t = std::max(0.0f, std::min(1.0f, t));
@@ -147,6 +208,9 @@ private:
 
     float m_zDistance = 0.0;
     float m_pointSize = 2.0f;
+
+    bool m_useSpecular = true;
+    bool m_useDiffuse = true;
 };
 
 #endif // SCENERENDERER_H

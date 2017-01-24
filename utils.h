@@ -6,6 +6,11 @@
 #include "vertex.h"
 #include "SVD.h"
 
+/*!
+     * \brief centerOfGravity
+     * \param vertices a list of points
+     * \return average position of all points
+     */
 QVector3D centerOfGravity(const QVector<Vertex>& vertices)
 {
     QVector3D cog;
@@ -15,11 +20,26 @@ QVector3D centerOfGravity(const QVector<Vertex>& vertices)
     return cog;
 }
 
+void generatePointIndices(const QVector<Vertex>& vertices,
+                          QVector<int>& indices)
+{
+    indices.clear();
+    int index = 0;
+    for(auto vertex : vertices) indices.push_back( index++ );
+}
+
 Matrix inverse3x3(Matrix& in)
 {
     return in;
 }
 
+/*!
+ * \brief determine point cloud boundaries
+ * \details determines the bounding box defined by two 3D points (min, max)
+ * \param vertices point cloud
+ * \param min minimum XYZ coordinates
+ * \param max maximum XYZ coordinates
+ */
 void pointCloudBounds(QVector<Vertex>& vertices, QVector3D& min, QVector3D& max)
 {
     if(vertices.empty()) return;
@@ -60,6 +80,12 @@ QVector3D colorFromGradientHSV(double index)
     else           return QVector3D(V,t,p);
 }
 
+/*!
+ * \brief fittedPlaneNormal
+ * \details fit a plane through given points to determine normal vector
+ * \param vertices list of points
+ * \return 3D normal vector
+ */
 QVector3D fittedPlaneNormal(const QVector<const Vertex*> vertices)
 {
     int numPoints = vertices.length();
@@ -235,6 +261,72 @@ void computeBestFitPlane(QVector<Vertex>& vertices, QVector<QVector3D>& corners,
   corners.push_back(corner2);
   corners.push_back(corner3);
   corners.push_back(corner4);
+}
+
+void computeBestFitSphere(const QVector<Vertex>& points, QVector3D& center, double& radius)
+{
+  //compute initial guess
+
+  //compute the initial center
+  center= QVector3D(0, 0, 0);
+  radius = 0;
+
+  if (points.size() < 4) return;
+
+  for (size_t i = 0; i < points.size(); ++i)
+  {
+    center += points[i].position;
+  }
+  center *= (1.0 / points.length());
+
+  //compute the initial radius
+  for (size_t i = 0; i < points.size(); ++i)
+  {
+    double d = points[i].position.distanceToPoint(center);
+    radius += d;
+  }
+  radius *= (1.0 / points.length());
+
+  Matrix J(points.size(), 4);
+  std::vector<double> D(points.size()), X(4);
+
+  const size_t MaxIterations = 100;
+  size_t it = 0;
+  for (it = 0; it < MaxIterations; ++it)
+  {
+    for (size_t i = 0; i < points.size(); ++i)
+    {
+      double vectorLength = points[i].position.distanceToPoint(center);
+
+      double Jr = -1.0;
+      if (vectorLength > 1.0e-6)
+      {
+        double JXo = -(points[i].position.x() - center.x()) / vectorLength;
+        double JYo = -(points[i].position.y() - center.y()) / vectorLength;
+        double JZo = -(points[i].position.z() - center.z()) / vectorLength;
+
+        J(i, 0) = Jr; J(i, 1) = JXo; J(i, 2) = JYo; J(i, 3) = JZo;
+      }
+      else
+      {
+        J(i, 0) = Jr; J(i, 1) = 0; J(i, 2) = 0; J(i, 3) = 0;
+      }
+      D[i] = -(vectorLength - radius);
+    }
+
+    SVD::solveLinearEquationSystem(J, X, D);
+    radius += X[0];
+    center.setX(center.x() + X[1]);
+    center.setY(center.y() + X[2]);
+    center.setZ(center.z() + X[3]);
+
+    const double updateLength = std::sqrt(X[0] * X[0] + X[1] * X[1] + X[2] * X[2] + X[3] * X[3]);
+    if (updateLength < 1.0e-6)
+      break;
+  }
+
+  std::cout << "sphere fit\n" << "iterations:"<<it<<"\nradius: " << radius
+    << "\ncenter:" << center.x() << "," << center.y() << "," << center.z() << std::endl;
 }
 
 #endif // I3DSCANNING_UTILS_H

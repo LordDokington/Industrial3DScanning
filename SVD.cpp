@@ -8,30 +8,107 @@ namespace SVD
 {
 
 //------------------------------------------------------------------------------
+/** @brief Solves a linear equation system using SVD.
+  @details Computes the solution vector \b x of the linear equation system \f$ A*x=b\f$.\n
+  Internally a Singular Value Decomposition is utilized which enables to exlude rows from
+  the solution space that are responsible for singular positions. The corresponding singular values
+  can be seen as the weights for the influence of the rows in the equation systems. Weights close to zero
+  singular positions which means the parameter/row has no influence on the solution (but values close to
+  zero lead to numerical problems so everything singular value that is close to zero is ignored for the solution.
+
+  SVD decomposes \b A in \b U,\b S,\b V. The solution vector \b x is then given by:\n
+  \f$ x=V*\left[diag(1/s_j)\right]*U^T*b \f$.
+
+  @param[in,out] A  matrix \b A of the linear equation system (gets replaced!)
+  @param[out]    x  solution vector \b x
+  @param[in]     b  vector \b b of the linear equation system
+  @note             matrix A gets replaced by the matrix U of the SVD!
+*/
+//------------------------------------------------------------------------------
+void solveLinearEquationSystem(Matrix& A, std::vector<double>& x, const std::vector<double>& b)
+{
+  const size_t M = A.M(); //number of rows (== number of equations)
+  const size_t N = A.N(); //numer of columns (== number of unknown variables that we want to compute)
+
+  x.resize(A.N());  //set the size of the solution vector
+
+  //prepare storage for SVD solver
+  std::vector<double> S; //vector of singular values from Singular Value Decomposition
+  Matrix V; //one of the resulting matrices from the SV decomposition (U*S*V^T)
+
+  //compute singular value decomposition
+  //Matrix A gets overriden / replaced by the matrix U of the SVD
+  decomposeMatrix(A, S, V);
+
+  /*******************************************************/
+  //The essential step of the SVD is to exclude singular positions, which are
+  //close to zero from the solution by explicitely setting them to zero
+  double wmax = 0;
+  for (size_t i = 0; i<S.size(); ++i){
+    if (S[i] > wmax)wmax = S[i];
+  }
+  const double wmin = 0.5*std::sqrt(M + N + 1.0)*wmax*std::numeric_limits<double>::epsilon();
+
+  for (size_t i = 0; i<S.size(); ++i){
+    if (S[i] < wmin) S[i] = 0;
+  }
+  /*******************************************************/
+
+
+  /*******************************************************/
+  //Compute U^T*b divided by the weights(singular values) S[j]
+  std::vector<double> tmp(N);
+  for (size_t j=0; j<N; ++j)
+  {
+    tmp[j] = 0;     //initialize
+    if (S[j] == 0){ //ignore singular positions
+      continue;
+    }
+
+    for (size_t i=0; i<M; ++i){
+      tmp[j] += A(i,j) * b[i];
+    }
+
+    tmp[j] /= S[j];
+  }
+
+  //Finally multiply temporary result with V
+  for (size_t j=0; j<N; ++j)
+  {
+    x[j] = 0;
+    for (size_t jj = 0; jj<N; ++jj)
+    {
+      x[j] += V(j, jj)*tmp[jj];
+    }
+  }
+  /*******************************************************/
+}
+
+//------------------------------------------------------------------------------
 /** @brief Computes the eigenvectors of symmetric square matrix with a SVD.
     @details  The singular values of a symmetric square matrix are the eigenvalues.
-              Also, in this case the orthogonale matrices U and V are identical and 
+              Also, in this case the orthogonale matrices U and V are identical and
               contain the eigenvector in the columns.
-    @param U[in,out] MxM-Matrix from which the eigenvectors are derived. It is replaced by 
+    @param[in,out] U MxM-Matrix from which the eigenvectors are derived. It is replaced by
                      a MxM-matrix that contains the eigenvector in its columns (sorted in decending order of the singular values).
 */
 //------------------------------------------------------------------------------
 void computeSymmetricEigenvectors(Matrix& U)
-{ 
+{
   Matrix V;
   std::vector<double> S;
   decomposeMatrix(U,S,V);  //compute SVD
 }
 
 /** @brief computes the singular value decomposition of a matrix.
-    @details decomposes a MxN-matrix (M >= N). 
-    
-    SVD-Methods  base on the theorem, that every MxN matrix A can be decomposed and described as the 
-    product of an MxN column-orthogonal matrix U, a NxN diagonal matrix S (here we use a vector to store the diagonal elements) 
+    @details decomposes a MxN-matrix (M >= N).
+
+    SVD-Methods  base on the theorem, that every MxN matrix A can be decomposed and described as the
+    product of an MxN column-orthogonal matrix U, a NxN diagonal matrix S (here we use a vector to store the diagonal elements)
     The elements in S are the singular values and they are larger or equal 0) as well as a transposed orthogonal NxN-matrix V.
     The function re-sorts the singular values in decending order (and re-orders the corresponding matrix columns).
     The algorithmus is from LAPACK, but the source is derived from JAMA (public domain).
-    
+
     @param U  Matrix to decompose (Its contents are changed, dimension stays MxN).
     @param S  Vector of singular values
     @param V  orthogonal NxN-Matrix
@@ -45,18 +122,18 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
   V.resize(U.N(), U.N());
 
   assert(m>=n && m>0 && n>0);
-  
+
   S.resize(n);
-  
+
   std::vector<double> e    (n);
   std::vector<double> work (m);
-  
+
   // Reduction to bidiagonal matrix. The diagonal elements are stored in S.
   // The superdiagonal elements (right-handed side over the diagonal) are stored in e.
   const size_t nct = std::min(m-1,n);
   const size_t nrt = std::max(size_t(0),std::min(n-2,m));
   const size_t K   = std::max(nct,nrt);
-  
+
   for (size_t k = 0; k < K; ++k)
   {
     if (k < nct)
@@ -66,13 +143,13 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
       for (size_t i = k; i < m; ++i) {
         S[k] = hypotenuse(S[k],U(i,k));
       }
-      
+
       if (S[k] != 0.0)
       {
         if (U(k,k) < 0.0){
           S[k] = -S[k];
         }
-        
+
         const double invSk=1.0/S[k];
         for (size_t i = k; i < m; ++i){
           U(i,k) *= invSk;
@@ -117,7 +194,7 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
         e[k+1] += 1.0;
       }
       e[k] = -e[k];
-      
+
       if ((k+1 < m) & (e[k] != 0.0))
       {
         // apply transformation.
@@ -134,12 +211,12 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
           }
         }
       }
-      
+
       // store transfomation in V for the following backwards-multiplication.
       for (size_t i = k+1; i < n; ++i) {
         V(i,k) = e[i];
       }
-      
+
     }
   }
 
@@ -162,7 +239,7 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
     }
     U(j,j) = 1.0;
   }
-  
+
   for (ptrdiff_t k_ = nct-1; k_ >= 0; --k_)
   {
     const size_t k(k_);
@@ -185,7 +262,7 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
       for (size_t i = 0; i < k; ++i) {
         U(i,k) = 0.0;
       }
-    } 
+    }
     else {
       for (size_t i = 0; i < m; ++i) {
         U(i,k) = 0.0;
@@ -226,7 +303,7 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
   size_t          iter = 0;
   const double    eps  = std::numeric_limits<double>::epsilon();
   const double    tiny = std::numeric_limits<double>::min();
-  
+
   while (p > 0)
   {
     ptrdiff_t k;    //counter
@@ -263,15 +340,15 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
         if (ks == k) {
           break;
         }
-        const double t = (ks != p   ? fabs(e[ks])  : 0.) + 
+        const double t = (ks != p   ? fabs(e[ks])  : 0.) +
                          (ks != k+1 ? fabs(e[ks-1]): 0.);
         if (fabs(S[ks]) <= (tiny + eps*t) ){
           S[ks] = 0.0;
           break;
         }
       }
-      if      (ks == k)   { task = 3; } 
-      else if (ks == p-1) { task = 1; } 
+      if      (ks == k)   { task = 3; }
+      else if (ks == p-1) { task = 1; }
       else                { task = 2; k = ks; }
     }
     ++k;
@@ -327,7 +404,7 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
       case 3: //Apply QR-Step / Shift.
       {
         const double scale = std::max(std::max(std::max(std::max(
-                             fabs(S[p-1]),fabs(S[p-2])),fabs(e[p-2])), 
+                             fabs(S[p-1]),fabs(S[p-2])),fabs(e[p-2])),
                              fabs(S[k])),fabs(e[k]));
         const double sp    = S[p-1]/scale;
         const double spm1  = S[p-2]/scale;
@@ -360,13 +437,13 @@ void decomposeMatrix(Matrix& U, std::vector<double>& S, Matrix& V)
           e[j]  = cs*e[j] - sn*S[j];
           g     = sn*S[j+1];
           S[j+1]= cs*S[j+1];
-          
+
           for (size_t i = 0; i < n; ++i){
             t       =  cs*V(i,j) + sn*V(i,j+1);
             V(i,j+1)= -sn*V(i,j) + cs*V(i,j+1);
             V(i,j)  = t;
           }
-          
+
           t     = hypotenuse(f,g);
           cs    = f/t;
           sn    = g/t;

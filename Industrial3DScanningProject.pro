@@ -38,4 +38,5 @@ HEADERS += \
     vertexarrayobject.h \
     vertex.h \
     Matrix.h \
-    SVD.h
+    SVD.h \
+    tetrahedronsphere.h

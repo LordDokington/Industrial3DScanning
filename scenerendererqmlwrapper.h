@@ -6,6 +6,10 @@
 
 #include "scenerenderer.h"
 
+/*!
+ * \brief The SceneRendererQMLWrapper class
+ * \details connects SceneRenderer and main.qml
+ */
 class SceneRendererQMLWrapper : public QQuickItem
 {
     Q_OBJECT
@@ -63,6 +67,28 @@ public:
     {
         if( !m_sceneRenderer ) return;
         m_sceneRenderer->setVertexColor(enabled ? QVector4D() : QVector4D(1, 171.0f / 255, 51.0f / 255, 1));
+    }
+
+    Q_INVOKABLE const bool useSpecular()
+    {
+        if( !m_sceneRenderer ) return true;
+        return m_sceneRenderer->useSpecular();
+    }
+    Q_INVOKABLE void setUseSpecular(const bool specular)
+    {
+        if( !m_sceneRenderer ) return;
+        m_sceneRenderer->setUseSpecular(specular);
+    }
+
+    Q_INVOKABLE const bool useDiffuse()
+    {
+        if( !m_sceneRenderer ) return true;
+        return m_sceneRenderer->useDiffuse();
+    }
+    Q_INVOKABLE void setUseDiffuse(const bool diffuse)
+    {
+        if( !m_sceneRenderer ) return;
+        m_sceneRenderer->setUseDiffuse(diffuse);
     }
 
     Q_INVOKABLE void rotate(float x1, float y1, float x2, float y2)

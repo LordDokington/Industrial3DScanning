@@ -12,12 +12,14 @@ namespace SVD
 {
   void decomposeMatrix (Matrix& U, std::vector<double>& S, Matrix& V);  ///< computes the SV decomposition
   void computeSymmetricEigenvectors(Matrix& U); ///< computes the Eigenvectors for a symmetric square Matrix with SVD
+  void solveLinearEquationSystem(Matrix& A, std::vector<double>& x, const std::vector<double>& b);
+
 
   /** @brief returns the square of a value.
       @param v  values
       @return   squared value
   */
-  inline double sqr(const double v){ return v*v;} 
+  inline double sqr(const double v){ return v*v;}
 
   /** @brief returns the hypotenuse of two values.
       @details It is just the Euklidean distance but takes care for numerical underflow and overflow.
@@ -32,4 +34,4 @@ namespace SVD
   }
 };
 
-#endif  // MY_SVD_H
+#endif

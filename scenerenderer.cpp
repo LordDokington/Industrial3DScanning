@@ -19,10 +19,19 @@ SceneRenderer::SceneRenderer()
     m_vertexBufferPing = new QVector<Vertex>();
     m_vertexBufferPong = new QVector<Vertex>();
 
+    m_sphere = new TetrahedronSphere(5, 0.1f);
+
     m_zDistance = mapZDistance(0.3f);
 
-    VertexFileLoader::cubePointCloudVertices(200, 0.1f, *m_vertexBufferPing);
+    VertexFileLoader::loadVerticesFromFile("C:/Users/Kay/Documents/Stanford Models/sphere2.xyz", *m_vertexBufferPing);
+    //VertexFileLoader::cubePointCloudVertices(200, 0.1f, *m_vertexBufferPing);
     generatePointIndices(*m_vertexBufferPing, m_indices);
+
+    QVector3D center;
+    double radius = 0;
+    computeBestFitSphere(*m_vertexBufferPing, center, radius);
+    m_sphere->setRadius(radius);
+    m_sphere->setPosition(center);
 
     setupKdTree();
 
@@ -61,19 +70,17 @@ void SceneRenderer::setGeometryFilePath(const QString& geometryFilePath)
 
     m_planeVertexBuffer.clear();
 
+    QVector3D center;
+    double radius = 0;
+    computeBestFitSphere(*m_vertexBufferPing, center, radius);
+    m_sphere->setupBuffer(5, radius);
+    m_sphere->setPosition(center);
+
     // geometry changed, hence make paint function recreate VAO
     m_isGeometryInvalidated = true;
 
     // schedule repaint for next frame when loading is done
     m_window->update();
-}
-
-void SceneRenderer::generatePointIndices(const QVector<Vertex>& vertices,
-                                         QVector<int>& indices)
-{
-    indices.clear();
-    int index = 0;
-    for(auto vertex : vertices) indices.push_back( index++ );
 }
 
 void SceneRenderer::setupModelView()
@@ -119,6 +126,9 @@ void SceneRenderer::paint()
 
     m_program->bind();
 
+    m_program->setUniformValue("useSpecular", m_useSpecular);
+    m_program->setUniformValue("useDiffuse", m_useDiffuse);
+
     m_program->setUniformValue("modelview", m_modelview);
     m_program->setUniformValue("projection", m_projection);
 
@@ -135,9 +145,13 @@ void SceneRenderer::paint()
     m_program->setUniformValue("color", QVector4D(1, 0, 0, 1));
     m_targetPointVAO.draw(GL_POINTS);
 
-    glPointSize(1);
-    m_program->setUniformValue("color", QVector4D(1, 1, 0, 0.0f));
+    glPointSize(3);
+    m_program->setUniformValue("color", QVector4D(1, 1, 1, 1));
     m_planeVAO.draw(GL_QUADS);
+
+    //m_program->setUniformValue("color", QVector4D(1, 1, 0, 0.4f));
+
+    m_sphereVAO.draw(GL_POINTS);
 
     // flush and swap buffers
     glFlush();
@@ -188,12 +202,21 @@ void SceneRenderer::initShader()
                                        "out highp vec3 ws_normal;"
                                        "out highp vec3 ws_position;"
 
+                                       "out highp vec3 es_normal;"
+                                       "out highp vec3 es_position;"
+                                       "out highp vec3 es_light;"
+
                                        "void main()"
                                        "{"
                                        "    gl_Position = projection* modelview * vec4(position, 1.0);"
                                        "    vertexColor = color;"
+                                       //"    (projection * modelview * vec4(-3.0, -3.0, -3.0, 0.0)).xyz"
                                        "    ws_normal = normal;"
                                        "    ws_position = position;"
+
+                                       "    es_normal = (modelview * vec4(normal, 0.0)).xyz;"
+                                       "    es_position = (modelview * vec4(position, 1.0)).xyz;"
+                                       "    es_light = (modelview * vec4(3.0, 3.0, 3.0, 0.0)).xyz;"
                                        "}");
     m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
                                        "#version 430\n"
@@ -204,19 +227,35 @@ void SceneRenderer::initShader()
                                        "in highp vec3 ws_normal;"
                                        "in highp vec3 ws_position;"
 
+                                       "in highp vec3 es_normal;"
+                                       "in highp vec3 es_position;"
+                                       "in highp vec3 es_light;"
+
+                                       "uniform bool useSpecular;"
+                                       "uniform bool useDiffuse;"
+
                                        "void main()"
                                        "{"
-                                       "    vec3 view = normalize(-ws_position);"
-                                       "    vec3 light = normalize(vec3(3.0, 3.0, 3.0) - ws_position);"
-                                       "    float diffuse = abs( dot(light, ws_normal) );"
 
-                                       "    vec3 halfVec = normalize(light + view);"
-                                       "    float specular = pow( max(dot(halfVec, ws_normal), 0.0), 20 ) * (20.0 + 8.0) / 100.0;"
+                                       "    vec3 lightPos = vec3(-3.0, -3.0, -3.0);"
+                                       "    vec3 ws_light = normalize(lightPos - ws_position);"
+                                       "    float diffuse = abs( dot(ws_light, ws_normal) );"
+
+                                       "    vec3 es_view = normalize(-es_position);"
+                                       "    vec3 halfVec = normalize( normalize(es_light) + es_view );"
+                                       "    float maxDot = dot(halfVec, normalize(es_normal));"
+                                       "    maxDot = max(maxDot, -maxDot);"
+                                       "    float specular = pow( maxDot, 100 ) * (20.0 + 8.0) / 30.0;"
 
                                        "    vec4 baseColor = (color != vec4(0.0)) ? color : vec4(vertexColor, 1.0);"
-
                                        "    gl_FragColor = baseColor;"
-                                       "    if( ws_normal != vec3(0.0) ) gl_FragColor = vec4(vec3(diffuse), 1.0) * baseColor;" //+ vec4(vec3(specular), 0.0);"
+
+                                       "    if( ws_normal != vec3(0.0) ) "
+                                       "    {"
+                                       "        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);"
+                                       "        if(useDiffuse)  gl_FragColor += vec4(vec3(diffuse), 0.0) * baseColor;"
+                                       "        if(useSpecular) gl_FragColor += 0.6 * vec4(vec3(specular), 0.0);"
+                                       "    }"
                                        "    if(color.a != 0.0) gl_FragColor.a = color.a;"
                                        "}");
 
@@ -235,6 +274,10 @@ void SceneRenderer::initVertexData()
     QVector<int> planeIndices;
     generatePointIndices(m_planeVertexBuffer, planeIndices);
     m_planeVAO.init(m_planeVertexBuffer, planeIndices);
+
+    QVector<int> sphereIndices;
+    generatePointIndices(m_sphere->vertices(), sphereIndices);
+    m_sphereVAO.init(m_sphere->vertices(), sphereIndices);
 }
 
 void SceneRenderer::rotate(float lastposX, float lastposY, float currposX, float currposY)

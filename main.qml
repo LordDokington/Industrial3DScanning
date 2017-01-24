@@ -8,7 +8,7 @@ import Renderer 1.0
 
 ApplicationWindow {
     visible: true
-    width: 1024; height: 768
+    width: 1200; height: 800
 
     title: qsTr("3D Scanning App")
 
@@ -95,7 +95,7 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
 
                 width: 200
-                height: 90
+                height: 70
 
                 color: uiColor
 
@@ -110,15 +110,58 @@ ApplicationWindow {
                         text: "vertex color"
                     }
 
-                    OldControls.RadioButton {
-                        text: "uniform"
-                        exclusiveGroup: vertexColorGroup
+                    RowLayout {
+                        spacing: 10
+
+                        OldControls.RadioButton {
+                            text: "uniform"
+                            exclusiveGroup: vertexColorGroup
+                        }
+                        OldControls.RadioButton {
+                            id: useVertexColorButton
+                            text: "KdTree"
+                            checked: true
+                            exclusiveGroup: vertexColorGroup
+                        }
                     }
-                    OldControls.RadioButton {
-                        id: useVertexColorButton
-                        text: "KdTree"
-                        checked: true
-                        exclusiveGroup: vertexColorGroup
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignRight
+
+                width: 200
+                height: 70
+
+                color: uiColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text {
+                        font.bold: true
+                        text: "lighting"
+                    }
+
+                    RowLayout {
+                        spacing: 10
+
+                        OldControls.CheckBox {
+                            id: useDiffuse
+                            text: "diffuse"
+                            checked: true
+
+                            onCheckedStateChanged: sceneRenderer.setUseDiffuse(checked)
+                        }
+
+                        OldControls.CheckBox {
+                            id: useSpecular
+                            text: "specular"
+                            checked: true
+
+                            onCheckedStateChanged: sceneRenderer.setUseSpecular(checked)
+                        }
                     }
                 }
             }
@@ -274,7 +317,7 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
 
                 width: 200
-                height: 120
+                height: 90
 
                 color: uiColor
 
